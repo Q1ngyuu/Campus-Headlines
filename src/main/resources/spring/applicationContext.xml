@@ -20,8 +20,12 @@
          注意：MapperScannerConfigurer 是 BeanDefinitionRegistryPostProcessor，
          若在其配置里用 ${} 会拿不到占位符（执行更早），所以下面扫描器全部写死包名。
          ============================================================ -->
-    <context:property-placeholder location="classpath:properties/jdbc.properties"
+    <!-- jdbc.properties 是入库的模板（占位符）；
+         jdbc-local.properties 是本地私有配置（已 gitignore），存在时覆盖模板里的值，
+         这样真实密码不会进 git。不存在时也不报错 -->
+    <context:property-placeholder location="classpath:properties/jdbc.properties,classpath:properties/jdbc-local.properties"
                                   file-encoding="UTF-8"
+                                  ignore-resource-not-found="true"
                                   ignore-unresolvable="true"/>
 
     <!-- ============================================================

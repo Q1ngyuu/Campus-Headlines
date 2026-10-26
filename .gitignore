@@ -29,6 +29,9 @@ logs/
 src/main/webapp/upload/*
 !src/main/webapp/upload/.gitkeep
 
+# ---------- 本地私有配置（含真实数据库密码，绝不提交） ----------
+src/main/resources/properties/jdbc-local.properties
+
 # ---------- 操作系统 ----------
 .DS_Store
 Thumbs.db

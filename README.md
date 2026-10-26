@@ -100,14 +100,29 @@ Tomcat 9 下载地址：<https://dlcdn.apache.org/tomcat/tomcat-9/>（选最新 
 ```sql
 CREATE DATABASE IF NOT EXISTS campus_headlines
     DEFAULT CHARACTER SET utf8mb4
-    COLLATE utf8mb4_general_ci;
+    COLLATE utf8mb4_0900_ai_ci;   -- MySQL 8 默认；5.7 用 utf8mb4_general_ci
 ```
 
 > 业务表在后续步骤中创建；现在库是空的也能正常启动（MyBatis 启动时不校验表是否存在）。
 
-### 3. 配置数据库连接
+### 3. 配置数据库连接（密码不要进仓库）
 
-编辑 `src/main/resources/properties/jdbc.properties`，把 `jdbc.username` / `jdbc.password` 改成自己的：
+配置拆成两个文件，**模板入库、真实密码不入库**：
+
+| 文件 | 是否入库 | 用途 |
+| --- | --- | --- |
+| `properties/jdbc.properties` | ✅ 入库 | 通用模板，密码是占位符 |
+| `properties/jdbc-local.properties` | ❌ 已 gitignore | 本地真实账号密码，覆盖模板 |
+
+`applicationContext.xml` 里两个都会加载，后者覆盖前者，且后者不存在时也不报错：
+
+```xml
+<context:property-placeholder
+    location="classpath:properties/jdbc.properties,classpath:properties/jdbc-local.properties"
+    ignore-resource-not-found="true" ignore-unresolvable="true"/>
+```
+
+新建 `src/main/resources/properties/jdbc-local.properties`，只写需要覆盖的项：
 
 ```properties
 jdbc.url=jdbc:mysql://localhost:3306/campus_headlines?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
@@ -115,7 +130,9 @@ jdbc.username=root
 jdbc.password=你的密码
 ```
 
-`serverTimezone` 必须和 MySQL 实际时区一致，否则查询时间会差 8 小时。
+> ⚠️ 仓库是公开的，**不要把真实密码写进 `jdbc.properties` 再提交**。改了本地文件后 `git status` 若看见它，说明 gitignore 没生效，别 `git add`。
+
+`serverTimezone` 必须和 MySQL 时区一致（本机 `@@time_zone = SYSTEM`，即东八区，用 `Asia/Shanghai` 正确），否则查询时间会差 8 小时。
 
 ### 4. 构建
 
