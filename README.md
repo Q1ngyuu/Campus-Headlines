@@ -1,4 +1,4 @@
-# 校园头条（Campus Headlines）
+﻿# 校园头条（Campus Headlines）
 
 基于 **SSM**（Spring 5 + SpringMVC + MyBatis-Plus）的校园新闻资讯站。当前仓库为**初始化骨架**：Maven Web 工程结构、依赖、Spring 双容器配置、日志与数据库配置模板已就绪，业务代码待后续步骤填充。
 
@@ -301,12 +301,57 @@ public String upload(MultipartFile file) { ... }
 
 `DispatcherServlet` 映射了 `/`，所以 `/static/**` 必须在 `spring-mvc.xml` 里显式映射，否则 CSS/JS 会 404。新增静态目录时记得同步加 `<mvc:resources>`。
 
-### 登录拦截器
+### 用户与登录（已实现）
 
-`LoginInterceptor` 已创建但**尚未启用**（`spring-mvc.xml` 中整段注释）。等登录功能完成后，放开 XML 里的 `<mvc:interceptors>` 注释，并把 `preHandle` 中的校验逻辑解除注释即可。
+**接口一览**（全部返回 `Result`：`{code, msg, data}`，HTTP 恒 200，靠 `code` 判断）
 
-> ⚠️ 别只注释掉内部的 `<mvc:interceptor>` 而留下空的 `<mvc:interceptors></mvc:interceptors>`：该标签的 XSD 要求至少一个子元素，空标签会让 Spring 在启动时直接抛
+| 方法 | 路径 | 入参 | 说明 |
+| --- | --- | --- | --- |
+| POST | `/user/register` | JSON `{username, password, nickname}` | 注册，角色固定学生(0)、状态正常(1) |
+| POST | `/user/login` | JSON `{username, password}` | 登录，成功后写 Session（key `loginUser`） |
+| GET | `/user/info` | — | 当前登录用户，取 Session |
+| POST | `/user/logout` | — | 销毁 Session |
+| GET | `/login` `/register` | — | 登录页 / 注册页（JSP） |
+
+**密码为什么用 BCrypt 而不是 MD5 + 盐**
+
+| | MD5 + 盐 | BCrypt（本项目） |
+| --- | --- | --- |
+| 计算速度 | 极快（GPU 每秒上亿次） | 慢且可调（强度 10，单次约 50-100ms） |
+| 盐管理 | 要多存一个 salt 字段，还要自己保证随机 | 盐自动生成并写进密文，**无需额外字段** |
+| 抗暴力破解 | 密文泄露后可高速爆破 | 每次校验都有固定成本，爆破代价极高 |
+| 现成实现 | 需自己拼装 | `BCryptPasswordEncoder`，`matches()` 直接比对 |
+
+结论：MD5 属于“加密快、破解也快”的历史方案，课程作业里用它可以跑通，但报告里很难讲清安全性。BCrypt 只依赖 `spring-security-crypto` 一个 jar（**不引入 Spring Security 的过滤器链**，对现有 SSM 零侵入），`UserServiceImpl` 里只用到 `encode()` 与 `matches()` 两个方法。
+
+库里存的就是 60 位密文，例如 `$2a$10$...`，长度和 `password varchar(100)` 匹配。
+
+**登录拦截策略**
+
+`LoginInterceptor` 已在 `spring-mvc.xml` 注册，采用「白名单列出要保护的路径」：
+
+| 受保护 | `/article/publish`、`/article/draft`、`/article/mine`、`/material/**`、`/favorite/**`、`/admin/**` |
+| --- | --- |
+| 放行 | `/user/login`、`/user/register`、`/login`、`/register`、`/article/list`、`/article/detail/**`、`/static/**`、`/upload/**` |
+
+未登录时的两种响应：
+
+- **AJAX**（带 `X-Requested-With: XMLHttpRequest`，或 `Accept: application/json`）→ `{"code":401,"msg":"请先登录"}`
+- **页面请求** → 302 重定向到 `/login`
+
+Session 超时在 `web.xml` 设 30 分钟。
+
+> ⚠️ `<mvc:interceptors>` 里至少要有一个 `<mvc:interceptor>` 子元素，空标签会让 Spring 启动直接抛
 > `cvc-complex-type.2.4.b: … 'mvc:interceptors' 的内容不完整`，整个应用起不来。
+
+### 两个必踩的坑（已处理）
+
+1. **`@Resource` 在 JDK 11+ 编译不过**：`javax.annotation` 包已从 JDK 移除，必须显式引入
+   `javax.annotation:javax.annotation-api:1.3.2`，否则报“程序包 javax.annotation 不存在”，
+   更隐蔽的是运行期注入会静默失效。
+2. **`LocalDateTime` 默认被序列化成数组**：不注册 `JavaTimeModule` 时 JSON 里是
+   `[2026,10,26,19,28,41]`。已通过 `config/JacksonConfig` 统一成 `yyyy-MM-dd HH:mm:ss`，
+   并在 `spring-mvc.xml` 的 JSON 转换器里引用该 `ObjectMapper`。
 
 ---
 
@@ -347,10 +392,10 @@ public String upload(MultipartFile file) { ... }
 - [x] 数据设计文档：E-R 图、状态流转、数据字典（`docs/database-design.md`）
 - [x] entity（6 个）+ mapper（6 个，继承 BaseMapper）
 - [ ] Service 层与事务
-- [ ] 登录/注册（Session + BCrypt），启用 `LoginInterceptor`
+- [x] 登录/注册（Session + BCrypt），启用 `LoginInterceptor`
 - [ ] 素材上传（图片/视频，落 `material` 表 + `/upload/**` 回显）
 - [ ] 资讯发布与审核（草稿 → 待审核 → 通过/驳回）
 - [ ] 首页列表分页 + 详情页 + 浏览量自增
 - [ ] 栏目筛选、收藏/取消收藏
 - [ ] JSP 视图与静态资源样式
-- [ ] 统一返回体 `Result` + 全局异常处理 `@ControllerAdvice`
+- [x] 统一返回体 `Result` + 全局异常处理 `@RestControllerAdvice`

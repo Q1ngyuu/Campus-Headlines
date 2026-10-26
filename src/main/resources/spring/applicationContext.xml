@@ -152,4 +152,14 @@
     <tx:annotation-driven transaction-manager="transactionManager"
                           proxy-target-class="true"/>
 
+    <!-- ============================================================
+         7. 密码加密器：BCrypt
+         强度 10（默认值），单次加密约 50-100ms，足以拖慢暴力破解；
+         盐值由 BCrypt 自动生成并写进密文，数据库不需要额外的 salt 字段
+         ============================================================ -->
+    <bean id="passwordEncoder"
+          class="org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder">
+        <constructor-arg name="strength" value="10"/>
+    </bean>
+
 </beans>

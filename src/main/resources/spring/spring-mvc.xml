@@ -25,11 +25,20 @@
          - 处理器映射/适配器、@ResponseBody 的 JSON 转换器由框架自动注册
          - 显式指定 UTF-8 的 StringHttpMessageConverter：
            Spring 默认用 ISO-8859-1 输出 String，会导致中文乱码
+         - 自定义 ObjectMapper：LocalDateTime 输出 yyyy-MM-dd HH:mm:ss，
+           而不是默认的 [2026,10,26,19,28,41] 数组
          ============================================================ -->
+    <bean id="jacksonObjectMapper"
+          class="com.campus.headlines.config.JacksonConfig"
+          factory-method="build"/>
+
     <mvc:annotation-driven>
         <mvc:message-converters register-defaults="true">
             <bean class="org.springframework.http.converter.StringHttpMessageConverter">
                 <constructor-arg value="UTF-8"/>
+            </bean>
+            <bean class="org.springframework.http.converter.json.MappingJackson2HttpMessageConverter">
+                <property name="objectMapper" ref="jacksonObjectMapper"/>
             </bean>
         </mvc:message-converters>
     </mvc:annotation-driven>
@@ -83,29 +92,40 @@
     -->
 
     <!-- ============================================================
-         6. 拦截器（当前未启用）
-         登录拦截器类已创建（com.campus.headlines.interceptor.LoginInterceptor），
-         但注册整段注释掉：等登录、Session 存 user 的步骤做完后放开即可。
+         6. 登录拦截器
+         采用「白名单包含要保护的路径」而不是拦截 /** 再排除：
+         新增公开页面时不用改配置，忘记配置的后果是“没保护”而不是“全站 401”。
 
-         放开时注意：
-         - 排除登录页、注册页、静态资源（下面已写好）
-         - 改成 <ref bean="loginInterceptor"/> 时，需要把 interceptor 包
-           纳入 component-scan，或单独声明该 bean
+         受保护：投稿、草稿、上传、后台管理
+         放行  ：登录/注册接口、列表与详情、静态资源、上传回显（logo/图片展示）
 
-         为什么整段注释而不是留空标签：mvc:interceptors 的 XSD 要求至少一个子元素，
-         空的 <mvc:interceptors/> 会让 Spring 启动直接抛 cvc-complex-type.2.4.b
+         未登录时由 LoginInterceptor 自行判断返回 JSON(401) 还是 302 跳登录页
          ============================================================ -->
-    <!--
     <mvc:interceptors>
         <mvc:interceptor>
-            <mvc:mapping path="/**"/>
+            <!-- 需要登录才能访问的路径 -->
+            <mvc:mapping path="/article/publish"/>
+            <mvc:mapping path="/article/publish/**"/>
+            <mvc:mapping path="/article/draft"/>
+            <mvc:mapping path="/article/draft/**"/>
+            <mvc:mapping path="/article/mine"/>
+            <mvc:mapping path="/material/upload"/>
+            <mvc:mapping path="/material/**"/>
+            <mvc:mapping path="/favorite/**"/>
+            <mvc:mapping path="/admin/**"/>
+
+            <!-- 显式放行（exclude 优先于 include） -->
+            <mvc:exclude-mapping path="/user/login"/>
+            <mvc:exclude-mapping path="/user/register"/>
             <mvc:exclude-mapping path="/login"/>
             <mvc:exclude-mapping path="/register"/>
+            <mvc:exclude-mapping path="/article/list"/>
+            <mvc:exclude-mapping path="/article/detail/**"/>
             <mvc:exclude-mapping path="/static/**"/>
             <mvc:exclude-mapping path="/upload/**"/>
+
             <bean class="com.campus.headlines.interceptor.LoginInterceptor"/>
         </mvc:interceptor>
     </mvc:interceptors>
-    -->
 
 </beans>

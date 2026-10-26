@@ -1,0 +1,123 @@
+/* 登录 / 注册页共用样式：单文件、无外部依赖，保证离线可用 */
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+    background: linear-gradient(135deg, #eef4ff 0%, #f7f9fc 50%, #eef7f2 100%);
+    color: #2c3e50;
+    padding: 24px;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 400px;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(31, 56, 88, .10);
+    padding: 32px 32px 22px;
+}
+
+.auth-card h1 {
+    margin: 0 0 6px;
+    font-size: 22px;
+    letter-spacing: 1px;
+}
+
+.subtitle {
+    margin: 0 0 22px;
+    font-size: 13px;
+    color: #8592a3;
+}
+
+.field {
+    margin-bottom: 16px;
+}
+
+.field label {
+    display: block;
+    font-size: 13px;
+    color: #5b6b7c;
+    margin-bottom: 6px;
+}
+
+.field input {
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    font-size: 14px;
+    border: 1px solid #dfe6ee;
+    border-radius: 8px;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+}
+
+.field input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, .12);
+}
+
+.msg {
+    min-height: 20px;
+    font-size: 13px;
+    line-height: 20px;
+    margin-bottom: 8px;
+}
+
+.msg.error {
+    color: #d03050;
+}
+
+.msg.ok {
+    color: #18a058;
+}
+
+.btn-primary {
+    width: 100%;
+    height: 42px;
+    border: none;
+    border-radius: 8px;
+    background: #2f6fed;
+    color: #fff;
+    font-size: 15px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: background .15s;
+}
+
+.btn-primary:hover {
+    background: #245bd0;
+}
+
+.btn-primary:disabled {
+    background: #9db6e8;
+    cursor: not-allowed;
+}
+
+.foot {
+    margin: 18px 0 0;
+    text-align: center;
+    font-size: 13px;
+    color: #8592a3;
+}
+
+.foot a {
+    color: #2f6fed;
+    text-decoration: none;
+}
+
+.foot a:hover {
+    text-decoration: underline;
+}
+
+.foot .sep {
+    margin: 0 8px;
+    color: #d5dde7;
+}
