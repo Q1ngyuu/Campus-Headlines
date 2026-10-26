@@ -8,24 +8,31 @@
 
 | 组件 | 版本 | 说明 |
 | --- | --- | --- |
-| JDK | **8**（推荐）/ 11 | 项目按 Java 8 编译，源码与字节码均兼容；11 也能跑，但不要用 17+（老版 SSM 依赖的反射/兼容问题多） |
-| Maven | 3.6+ | 建议 3.8.x / 3.9.x |
-| Spring | 5.3.39 | 5.3.x 是支持 Java 8 的最后一代，长期稳定版 |
+| JDK | **21.0.2**（本机已装） | `JAVA_HOME=D:\soft\Java\jdk-21`，`--release 21` 编译。Spring 5.3.30+ 起正式支持 JDK 21 |
+| Maven | 3.9.6 | 本机**未装独立 Maven**，用 IDEA 2024.1 自带的 3.9.6（见「4. 构建」） |
+| Spring | 5.3.39 | 5.3 系列最终版，支持 JDK 8–21 |
 | SpringMVC | 5.3.39 | 与 Spring 同版本 |
 | MyBatis | 3.5.13 | 与 MyBatis-Plus 3.5.3.2 内部锁定版本一致 |
 | mybatis-spring | 2.1.1 | 同上，避免版本冲突 |
-| MyBatis-Plus | 3.5.3.2 | 兼容 Spring 5 + Java 8；分页插件在 `mybatis-plus-extension` 内 |
-| MySQL | 5.7 / 8.0 | 驱动 `mysql-connector-j:8.0.33`，两种版本都能连 |
-| Druid | 1.2.23 | 连接池，自带 SQL 监控 |
+| MyBatis-Plus | 3.5.3.2 | 兼容 Spring 5；分页插件在 `mybatis-plus-extension` 内 |
+| MySQL | **8.0.44**（本机服务 `MySQL80` 运行中） | 驱动 `mysql-connector-j:8.0.33`，8.0/5.7 都能连 |
+| Druid | 1.2.24 | 连接池，自带 SQL 监控 |
 | Servlet API | 4.0.1 | `javax.servlet`（**不是** `jakarta.servlet`） |
 | JSP API | 2.3.3 | 编译期 provided，运行期由 Tomcat 提供 |
 | JSTL | 1.2 | 需要打进 war |
-| Jackson | 2.15.4 | 含 `jackson-datatype-jsr310` 支持 `LocalDateTime` |
+| Jackson | 2.17.3 | 含 `jackson-datatype-jsr310` 支持 `LocalDateTime` |
+| AspectJ | 1.9.22.1 | 1.9.20 只支持到 Java 18，故上调 |
 | 文件上传 | commons-fileupload 1.5 + commons-io 2.11.0 | 配合 `CommonsMultipartResolver` |
-| 日志 | Log4j2 2.20.0 + slf4j-api 1.7.36 | 不要同时引入 logback |
-| Web 容器 | **Tomcat 8.5 / 9.0** | ⚠️ **Tomcat 10+ 不能直接用**（已迁移到 jakarta 命名空间） |
+| 日志 | Log4j2 2.24.3 + slf4j-api 1.7.36 | 不要同时引入 logback |
+| Web 容器 | **Tomcat 9.0.x** | ⚠️ 必须是 9.0.x，见下方说明 |
 
-> **为什么选 Java 8**：Spring 5.3 + MyBatis-Plus 3.5.x + JSP/JSTL 这套组合在 Java 8 上验证最充分，Tomcat 8.5/9 与 MySQL 5.7/8 的兼容性也最省心。用 JDK 21 编译时 `-source/-target 1.8` 仍可用，但会提示 "source value 8 is obsolete"，不影响构建。
+> **为什么是 Java 21**：本机只有 JDK 21（另有 11.0.14 和 1.8.0_472 备用），`JAVA_HOME` 指向 21，所以直接以 21 为目标，不搞「用 21 编 8」的将就方案。Spring 5.3.30 起补充了对 JDK 21 的支持，5.3.39 是这条线的最终版，配合上调后的 AspectJ 1.9.22.1 / Log4j2 2.24.3 / Jackson 2.17.3 / Druid 1.2.24 在 JDK 21 上没有已知坑。
+>
+> 要退回更低版本（例如课程要求 JDK 8）：只改 `pom.xml` 里 `<maven.compiler.release>` 一处即可，Spring 5.3.39 本身覆盖 8–21，不必换依赖。
+
+> ⚠️ **Tomcat 10 / 11 不能直接用**：Tomcat 10 起 servlet API 从 `javax.*` 改为 `jakarta.*`，部署本项目会直接抛 `ClassNotFoundException: javax.servlet.Filter`。本机 `C:\Users\11270\Downloads\apache-tomcat-10.1.59-windows-x64` 是 **10.1.59**，属于这一类，**请另下 Tomcat 9.0.x**（建议 9.0.10x 最新版，支持 JDK 21）。
+>
+> 若坚持用 Tomcat 10.1，则整套要迁到 Jakarta：Spring 6.x + MyBatis-Plus 3.5.9+ + `jakarta.servlet-api`，属于另一条技术路线，不在本项目范围内。
 
 ---
 
@@ -73,10 +80,20 @@ Campus-Headlines/
 
 ### 1. 准备环境
 
-- 安装 **JDK 8**（或 11），`java -version` 可验证
-- 安装 **Maven 3.6+**，`mvn -v` 可验证
-- 安装 **MySQL 5.7 / 8.0**
-- 下载 **Tomcat 9.0.x**（解压即用，不需要安装）
+本机现状（2026-10 体检）：
+
+| 项 | 状态 |
+| --- | --- |
+| JDK 21.0.2 | ✅ 已装，`JAVA_HOME=D:\soft\Java\jdk-21` |
+| MySQL 8.0.44 | ✅ 已装，服务 `MySQL80` 正在运行 |
+| Maven | ⚠️ 未装独立版本，用 IDEA 2024.1 自带的 3.9.6 |
+| Tomcat 9 | ❌ 未装（只有 10.1.59，**不能用**） |
+| IDEA | ✅ 2024.1（`D:\Program Files\JetBrains\IntelliJ IDEA 2024.1`） |
+
+所以只剩两步要补：**下载 Tomcat 9.0.x**（解压即用），以及可选地装独立 Maven。
+
+Tomcat 9 下载地址：<https://dlcdn.apache.org/tomcat/tomcat-9/>（选最新 9.0.x 的 `windows-x64.zip`）。
+拿到后解压到例如 `D:\soft\apache-tomcat-9.0.xx`，解压即用，无需安装、无需配环境变量。
 
 ### 2. 建库
 
@@ -102,12 +119,24 @@ jdbc.password=你的密码
 
 ### 4. 构建
 
+本机没装独立 Maven，直接借用 IDEA 2024.1 自带的 3.9.6（PowerShell）：
+
+```powershell
+$env:JAVA_HOME = "D:\soft\Java\jdk-21"
+$mvn = "D:\Program Files\JetBrains\IntelliJ IDEA 2024.1\plugins\maven\lib\maven3\bin\mvn.cmd"
+cd D:\Users\11270\Documents\deepseek-harness\default-workspace\Campus-Headlines
+& $mvn clean package -DskipTests
+```
+
+装好独立 Maven 之后就是常规的：
+
 ```bash
-# 项目根目录执行
 mvn clean package -DskipTests
 ```
 
 产物：`target/campus-headlines.war`
+
+> 依赖下载慢就配阿里云镜像，`~/.m2/settings.xml` 内容见文末「常见问题」。
 
 ### 5. 部署到 Tomcat
 
@@ -181,7 +210,10 @@ public String upload(MultipartFile file) { ... }
 
 ### 登录拦截器
 
-`LoginInterceptor` 已创建但**尚未启用**（`spring-mvc.xml` 中保持注释）。等登录功能完成后，放开 XML 里的 `<mvc:interceptor>` 注释，并把 `preHandle` 中的校验逻辑解除注释即可。
+`LoginInterceptor` 已创建但**尚未启用**（`spring-mvc.xml` 中整段注释）。等登录功能完成后，放开 XML 里的 `<mvc:interceptors>` 注释，并把 `preHandle` 中的校验逻辑解除注释即可。
+
+> ⚠️ 别只注释掉内部的 `<mvc:interceptor>` 而留下空的 `<mvc:interceptors></mvc:interceptors>`：该标签的 XSD 要求至少一个子元素，空标签会让 Spring 在启动时直接抛
+> `cvc-complex-type.2.4.b: … 'mvc:interceptors' 的内容不完整`，整个应用起不来。
 
 ---
 

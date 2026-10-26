@@ -19,23 +19,26 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <!-- Java 8：SSM 生态（Tomcat 8.5/9、MySQL 驱动、JSP）兼容性最稳的基线 -->
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <!-- Java 21：本机 JDK 21.0.2，直接以 21 为目标编译
+             Spring 5.3.30+ 起正式支持 JDK 21，本项目用 5.3.39（5.3 最终版）
+             若需降到 17 / 11 / 8，只改这一个值即可（相应下调 spring 版本） -->
+        <maven.compiler.release>21</maven.compiler.release>
 
         <!-- 依赖版本集中定义，改版本只改这里 -->
         <spring.version>5.3.39</spring.version>
         <mybatis.version>3.5.13</mybatis.version>
         <mybatis-spring.version>2.1.1</mybatis-spring.version>
         <mybatis-plus.version>3.5.3.2</mybatis-plus.version>
+        <!-- 本机 MySQL Server 8.0.44，驱动 8.0.33 完全兼容 -->
         <mysql.version>8.0.33</mysql.version>
-        <druid.version>1.2.23</druid.version>
-        <jackson.version>2.15.4</jackson.version>
-        <log4j2.version>2.20.0</log4j2.version>
+        <druid.version>1.2.24</druid.version>
+        <jackson.version>2.17.3</jackson.version>
+        <log4j2.version>2.24.3</log4j2.version>
         <slf4j.version>1.7.36</slf4j.version>
         <commons-io.version>2.11.0</commons-io.version>
         <commons-fileupload.version>1.5</commons-fileupload.version>
-        <aspectj.version>1.9.20.1</aspectj.version>
+        <!-- 1.9.22.1 支持 Java 21 字节码（1.9.20 只到 18） -->
+        <aspectj.version>1.9.22.1</aspectj.version>
         <servlet-api.version>4.0.1</servlet-api.version>
         <jsp-api.version>2.3.3</jsp-api.version>
         <jstl.version>1.2</jstl.version>
@@ -207,10 +210,10 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
+                <version>3.13.0</version>
                 <configuration>
-                    <source>${maven.compiler.source}</source>
-                    <target>${maven.compiler.target}</target>
+                    <!-- release 比 source/target 更严格：同时校验 JDK 21 的 API 边界 -->
+                    <release>${maven.compiler.release}</release>
                     <encoding>UTF-8</encoding>
                 </configuration>
             </plugin>
@@ -218,7 +221,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
-                <version>3.3.2</version>
+                <version>3.4.0</version>
                 <configuration>
                     <!-- 已有 WEB-INF/web.xml，缺少时也不报错，便于后续裁剪 -->
                     <failOnMissingWebXml>false</failOnMissingWebXml>

@@ -83,17 +83,20 @@
     -->
 
     <!-- ============================================================
-         6. 拦截器
+         6. 拦截器（当前未启用）
          登录拦截器类已创建（com.campus.headlines.interceptor.LoginInterceptor），
-         但注册先注释掉：等登录、Session 存 user 的步骤做完后，取消注释即可生效。
+         但注册整段注释掉：等登录、Session 存 user 的步骤做完后放开即可。
 
-         取消注释时同时注意：
-         - 排除登录页、注册页、静态资源
-         - 拦截器类改成 <ref bean="loginInterceptor"/> 时，
-           需要把 interceptor 包也纳入 component-scan 或手动声明该 bean
+         放开时注意：
+         - 排除登录页、注册页、静态资源（下面已写好）
+         - 改成 <ref bean="loginInterceptor"/> 时，需要把 interceptor 包
+           纳入 component-scan，或单独声明该 bean
+
+         为什么整段注释而不是留空标签：mvc:interceptors 的 XSD 要求至少一个子元素，
+         空的 <mvc:interceptors/> 会让 Spring 启动直接抛 cvc-complex-type.2.4.b
          ============================================================ -->
+    <!--
     <mvc:interceptors>
-        <!--
         <mvc:interceptor>
             <mvc:mapping path="/**"/>
             <mvc:exclude-mapping path="/login"/>
@@ -102,7 +105,7 @@
             <mvc:exclude-mapping path="/upload/**"/>
             <bean class="com.campus.headlines.interceptor.LoginInterceptor"/>
         </mvc:interceptor>
-        -->
     </mvc:interceptors>
+    -->
 
 </beans>
