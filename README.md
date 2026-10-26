@@ -43,14 +43,16 @@ Campus-Headlines/
 ├── pom.xml
 ├── README.md
 ├── .gitignore
+├── docs/
+│   └── database-design.md       # 数据库设计：E-R 图、数据字典、状态流转
 └── src/
     ├── main/
     │   ├── java/com/campus/headlines/
     │   │   ├── controller/      # 控制层：接收请求、返回视图/JSON
     │   │   ├── service/         # 业务接口
     │   │   │   └── impl/        # 业务实现（@Service / @Transactional）
-    │   │   ├── mapper/          # MyBatis-Plus Mapper 接口
-    │   │   ├── entity/          # 数据库实体
+    │   │   ├── mapper/          # MyBatis-Plus Mapper 接口（6 个，已建）
+    │   │   ├── entity/          # 数据库实体（6 个，已建）
     │   │   ├── config/          # JavaConfig（ObjectMapper、跨域等）
     │   │   ├── interceptor/     # 拦截器（LoginInterceptor 已建，未启用）
     │   │   ├── util/            # 工具类（Result、加密、上传…）
@@ -63,6 +65,8 @@ Campus-Headlines/
     │   │   ├── properties/
     │   │   │   └── jdbc.properties          # 数据库连接模板（需自己填）
     │   │   ├── mapper/                      # MyBatis XML（classpath:mapper/**/*.xml）
+    │   │   ├── sql/
+    │   │   │   └── schema.sql               # 建表脚本（6 张表 + 外键 + 初始化栏目）
     │   │   └── log4j2.xml                   # 日志配置
     │   └── webapp/
     │       ├── index.jsp                    # 部署自检页
@@ -73,6 +77,32 @@ Campus-Headlines/
     │       └── upload/                      # 上传文件回显目录（映射 /upload/**）
     └── test/java/com/campus/headlines/
 ```
+
+---
+
+## 三、数据库设计
+
+建表脚本：[`src/main/resources/sql/schema.sql`](src/main/resources/sql/schema.sql)（6 张表、7 个外键）
+
+| 表 | 说明 |
+| --- | --- |
+| `user` | 用户，`role` 区分学生(0)与管理员(1) |
+| `category` | 栏目分类 |
+| `material` | 素材（图片 / 视频） |
+| `article` | 资讯，`status` 走审核流转 |
+| `article_material` | 资讯与素材的多对多关联 |
+| `favorite` | 收藏，`(user_id, article_id)` 唯一 |
+
+导入方式（PowerShell，需先有 `campus_headlines` 库）：
+
+```powershell
+$mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
+Get-Content .\src\main\resources\sql\schema.sql -Raw -Encoding UTF8 |
+    & $mysql -u root -p --default-character-set=utf8mb4 campus_headlines
+```
+
+完整的 E-R 关系、Mermaid 图、资讯状态流转图与数据字典见
+[`docs/database-design.md`](docs/database-design.md)。
 
 ---
 
@@ -263,13 +293,16 @@ public String upload(MultipartFile file) { ... }
 
 ---
 
-## 六、后续开发计划
+## 六、开发进度
 
-- [ ] 建表：用户、新闻、分类、评论、点赞（SQL 脚本放 `src/main/resources/sql/`）
-- [ ] entity + mapper + mapper.xml
+- [x] 建表：user / category / material / article / article_material / favorite（`resources/sql/schema.sql`）
+- [x] 数据设计文档：E-R 图、状态流转、数据字典（`docs/database-design.md`）
+- [x] entity（6 个）+ mapper（6 个，继承 BaseMapper）
 - [ ] Service 层与事务
-- [ ] 登录/注册（Session + 密码加密），启用 `LoginInterceptor`
-- [ ] 新闻列表分页、详情、发布、编辑、删除
-- [ ] 图片上传（`/upload/**` 回显）
+- [ ] 登录/注册（Session + BCrypt），启用 `LoginInterceptor`
+- [ ] 素材上传（图片/视频，落 `material` 表 + `/upload/**` 回显）
+- [ ] 资讯发布与审核（草稿 → 待审核 → 通过/驳回）
+- [ ] 首页列表分页 + 详情页 + 浏览量自增
+- [ ] 栏目筛选、收藏/取消收藏
 - [ ] JSP 视图与静态资源样式
 - [ ] 统一返回体 `Result` + 全局异常处理 `@ControllerAdvice`
