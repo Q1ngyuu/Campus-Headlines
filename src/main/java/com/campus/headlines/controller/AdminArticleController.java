@@ -2,6 +2,7 @@ package com.campus.headlines.controller;
 
 import com.campus.headlines.common.Result;
 import com.campus.headlines.dto.AuditDTO;
+import com.campus.headlines.dto.TopDTO;
 import com.campus.headlines.service.ArticleService;
 import com.campus.headlines.util.SessionUtil;
 import com.campus.headlines.vo.ArticleListVO;
@@ -51,6 +52,38 @@ public class AdminArticleController {
             @RequestParam(value = "page", defaultValue = "1") long page,
             @RequestParam(value = "size", defaultValue = "10") long size) {
         return Result.success(articleService.listPendingAudit(page, size));
+    }
+
+    /**
+     * 已通过的资讯列表（管理员用，可在此置顶/取消置顶）。
+     *
+     * <pre>
+     * GET /admin/article/published?page=1&size=10
+     * </pre>
+     */
+    @GetMapping("/published")
+    @ResponseBody
+    public Result<PageVO<ArticleListVO>> published(
+            @RequestParam(value = "page", defaultValue = "1") long page,
+            @RequestParam(value = "size", defaultValue = "10") long size) {
+        return Result.success(articleService.listPublishedForAdmin(page, size));
+    }
+
+    /**
+     * 置顶 / 取消置顶。
+     *
+     * <pre>
+     * POST /admin/article/top
+     * {"articleId": 12, "isTop": 1}
+     * </pre>
+     */
+    @PostMapping("/top")
+    @ResponseBody
+    public Result<Void> top(@RequestBody TopDTO dto, HttpSession session) {
+        Long adminUserId = SessionUtil.requireUserId(session);
+        articleService.top(dto.getArticleId(), dto.getIsTop(), adminUserId);
+        return Result.success(Integer.valueOf(1).equals(dto.getIsTop())
+                ? "已置顶到首页顶部" : "已取消置顶", null);
     }
 
     /**

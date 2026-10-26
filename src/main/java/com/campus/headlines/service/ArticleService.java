@@ -87,6 +87,21 @@ public interface ArticleService {
     List<ArticleListVO> searchArticles(Long categoryId, String keyword, Integer status);
 
     /**
+     * 管理员列表：已通过的资讯（可按 is_top 看到置顶状态，用于置顶/取消置顶）。
+     */
+    PageVO<ArticleListVO> listPublishedForAdmin(long page, long size);
+
+    /**
+     * 置顶 / 取消置顶。仅管理员可操作，且只对已通过(2)的资讯生效。
+     *
+     * <p>首页列表本来就按 {@code is_top DESC, publish_time DESC} 排序，
+     * 因此置顶后无需其它改动，刷新首页即可看到它靠前。</p>
+     *
+     * @param isTop 1-置顶，0-取消置顶
+     */
+    void top(Long articleId, Integer isTop, Long adminUserId);
+
+    /**
      * 编辑回填：取自己的草稿/被驳回稿件。
      */
     ArticleEditVO getForEdit(Long articleId, Long userId);

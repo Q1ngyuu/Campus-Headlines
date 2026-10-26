@@ -19,6 +19,7 @@
     <c:if test="${not empty loginUser}">
         <a href="${ctx}/article/publish">发布资讯</a>
         <a href="${ctx}/article/my">我的文章</a>
+        <a href="${ctx}/favorite">我的收藏</a>
         <a href="${ctx}/material">素材管理</a>
     </c:if>
     <span class="spacer"></span>
@@ -119,7 +120,7 @@
                 return;
             }
             $.ajax({
-                url: ctx + '/favorite/toggle/${article.id}',
+                url: ctx + '/favorite/toggle?articleId=${article.id}',
                 type: 'POST',
                 dataType: 'json',
                 success: function (res) {

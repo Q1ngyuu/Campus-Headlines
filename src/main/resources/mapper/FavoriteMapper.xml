@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  收藏 Mapper 的 XML 部分。
+
+  “我的收藏”需要收藏表 + 文章表 + 栏目表三表联查，单表 BaseMapper 不够用，
+  所以用 XML 写联表查询，只返回 status=2（已通过）的文章 ——
+  文章被驳回或退回草稿后，收藏列表里不应该再出现它。
+-->
+<mapper namespace="com.campus.headlines.mapper.FavoriteMapper">
+
+    <resultMap id="FavoriteVOMap" type="com.campus.headlines.vo.FavoriteVO">
+        <id column="favorite_id" property="favoriteId"/>
+        <result column="article_id" property="articleId"/>
+        <result column="title" property="title"/>
+        <result column="cover_image" property="coverImage"/>
+        <result column="category_name" property="categoryName"/>
+        <result column="publish_time" property="publishTime"/>
+        <result column="view_count" property="viewCount"/>
+        <result column="is_top" property="isTop"/>
+        <result column="favorite_time" property="favoriteTime"/>
+    </resultMap>
+
+    <!--
+      联表查询当前用户收藏的文章：
+        - JOIN article        只保留文章还在的收藏（外键级联删除后本就不会有孤儿，双保险）
+        - JOIN category       取栏目名（LEFT JOIN，未分类也要能显示）
+        - a.status = 2        只出已通过的文章
+      顺序：最近收藏的靠前
+    -->
+    <select id="selectFavoriteArticles" resultMap="FavoriteVOMap">
+        SELECT f.id            AS favorite_id,
+               f.article_id    AS article_id,
+               f.create_time   AS favorite_time,
+               a.title         AS title,
+               a.cover_image   AS cover_image,
+               a.publish_time  AS publish_time,
+               a.view_count    AS view_count,
+               a.is_top        AS is_top,
+               c.name          AS category_name
+        FROM favorite f
+                 INNER JOIN article a ON a.id = f.article_id
+                 LEFT JOIN category c ON c.id = a.category_id
+        WHERE f.user_id = #{userId}
+          AND a.status = 2
+        ORDER BY f.create_time DESC, f.id DESC
+    </select>
+
+</mapper>

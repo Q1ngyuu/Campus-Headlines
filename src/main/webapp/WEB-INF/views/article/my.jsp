@@ -16,6 +16,7 @@
     <span class="brand">校园头条</span>
     <a href="${ctx}/">首页</a>
     <a href="${ctx}/article/publish">发布资讯</a>
+    <a href="${ctx}/favorite">我的收藏</a>
     <a href="${ctx}/material">素材管理</a>
     <span class="spacer"></span>
     <span class="hint" style="margin:0">${loginUser.nickname}</span>

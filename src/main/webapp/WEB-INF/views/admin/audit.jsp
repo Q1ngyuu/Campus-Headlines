@@ -21,10 +21,15 @@
 
 <div class="wrap">
     <div class="panel">
-        <h2>待审核资讯</h2>
-        <p class="hint">
-            通过后状态变为「已通过」并写入发布时间，立即出现在首页；
-            驳回必须填写原因，作者可在「我的文章」里看到并修改后重新提交。
+        <div class="filters">
+            <div class="tabs" id="tabs">
+                <span class="tab active" data-tab="pending">待审核</span>
+                <span class="tab" data-tab="published">已通过（可置顶）</span>
+            </div>
+        </div>
+
+        <p class="hint" id="tabHint">
+            通过后状态变为「已通过」并写入发布时间；驳回必须填写原因，作者可修改后重新提交。
         </p>
 
         <div id="listBox"><div class="empty">加载中...</div></div>
@@ -38,7 +43,7 @@
 <script>
     (function () {
         var ctx = '${ctx}';
-        var state = { page: 1, size: 10 };
+        var state = { tab: 'pending', page: 1, size: 10 };
 
         function esc(s) { return $('<div>').text(s == null ? '' : s).html(); }
 
@@ -50,70 +55,100 @@
             $t.data('timer', setTimeout(function () { $t.removeClass('show'); }, 2400));
         }
 
-        function render(data) {
-            var $box = $('#listBox').empty();
+        // ---------- 待审核 / 已通过 ----------
+        function renderPending(data) {
             var list = data.records || [];
+            if (!list.length) { return $('<div class="empty">暂无待审核资讯</div>'); }
 
-            if (!list.length) {
-                $box.append('<div class="empty">暂无待审核资讯</div>');
-            } else {
-                var $table = $('<table class="audit-table"></table>');
-                $table.append(
-                    '<thead><tr>' +
-                    '<th style="width:60px">ID</th>' +
-                    '<th>标题</th>' +
-                    '<th style="width:110px">作者</th>' +
-                    '<th style="width:110px">栏目</th>' +
-                    '<th style="width:160px">提交时间</th>' +
-                    '<th style="width:220px">操作</th>' +
-                    '</tr></thead>'
-                );
+            var $table = $('<table class="audit-table"></table>').append(
+                '<thead><tr><th style="width:60px">ID</th><th>标题</th>' +
+                '<th style="width:110px">作者</th><th style="width:110px">栏目</th>' +
+                '<th style="width:160px">提交时间</th><th style="width:220px">操作</th></tr></thead>'
+            );
+            var $tbody = $('<tbody></tbody>');
 
-                var $tbody = $('<tbody></tbody>');
-                list.forEach(function (a) {
-                    var $tr = $('<tr></tr>');
+            list.forEach(function (a) {
+                var $ops = $('<td><div class="ops"></div></td>');
+                var $opWrap = $ops.find('.ops');
+                var $reason = $('<input class="reason-input" placeholder="驳回原因（驳回时必填）" maxlength="200" style="display:none">');
 
-                    var $ops = $('<td><div class="ops"></div></td>');
-                    var $opWrap = $ops.find('.ops');
+                var $pass = $('<button class="btn btn-sm btn-primary">通过</button>')
+                    .on('click', function () { audit(a.id, 1, null, this); });
 
-                    var $reason = $('<input class="reason-input" placeholder="驳回原因（驳回时必填）" maxlength="200" style="display:none">');
+                var $reject = $('<button class="btn btn-sm btn-danger">驳回</button>')
+                    .on('click', function () {
+                        if ($reason.is(':hidden')) {
+                            $reason.show().focus();
+                            $reject.text('确认驳回');
+                            return;
+                        }
+                        var reason = $.trim($reason.val());
+                        if (!reason) { toast('请填写驳回原因', 'error'); $reason.focus(); return; }
+                        audit(a.id, 0, reason, this);
+                    });
 
-                    var $pass = $('<button class="btn btn-sm btn-primary">通过</button>')
-                        .on('click', function () { audit(a.id, 1, null, this); });
+                $opWrap.append($pass, $reject);
 
-                    var $reject = $('<button class="btn btn-sm btn-danger">驳回</button>')
-                        .on('click', function () {
-                            // 第一次点展开原因输入框，第二次才真正提交
-                            if ($reason.is(':hidden')) {
-                                $reason.show().focus();
-                                $reject.text('确认驳回');
-                                return;
-                            }
-                            var reason = $.trim($reason.val());
-                            if (!reason) { toast('请填写驳回原因', 'error'); $reason.focus(); return; }
-                            audit(a.id, 0, reason, this);
-                        });
-
-                    $opWrap.append($pass, $reject);
-
-                    $tr.append($('<td></td>').text(a.id))
-                        .append($('<td></td>').append($('<a></a>')
-                            .attr('href', 'javascript:void(0)')
-                            .attr('data-id', a.id)
-                            .text(a.title)
-                            .on('click', function () { if (a.status === 2) { window.open(ctx + '/article/detail/' + a.id); } })))
+                $tbody.append(
+                    $('<tr></tr>')
+                        .append($('<td></td>').text(a.id))
+                        .append($('<td></td>').text(a.title))
                         .append($('<td></td>').text(a.authorName || ''))
                         .append($('<td></td>').text(a.categoryName || '未分类'))
                         .append($('<td></td>').text(a.updateTime || ''))
-                        .append($ops);
+                        .append($ops)
+                );
+                $tbody.append($('<tr></tr>').append($('<td colspan="6"></td>').append($reason)));
+            });
 
-                    var $trReason = $('<tr></tr>').append($('<td colspan="6"></td>').append($reason));
-                    $tbody.append($tr, $trReason);
-                });
+            return $table.append($tbody);
+        }
 
-                $table.append($tbody);
-                $box.append($table);
-            }
+        function renderPublished(data) {
+            var list = data.records || [];
+            if (!list.length) { return $('<div class="empty">还没有已通过的资讯</div>'); }
+
+            var $table = $('<table class="audit-table"></table>').append(
+                '<thead><tr><th style="width:60px">ID</th><th>标题</th>' +
+                '<th style="width:110px">作者</th><th style="width:160px">发布时间</th>' +
+                '<th style="width:90px">浏览量</th><th style="width:90px">置顶</th>' +
+                '<th style="width:180px">操作</th></tr></thead>'
+            );
+            var $tbody = $('<tbody></tbody>');
+
+            list.forEach(function (a) {
+                var $ops = $('<td><div class="ops"></div></td>');
+                var top = a.isTop === 1;
+
+                $ops.find('.ops').append(
+                    $('<button class="btn btn-sm ' + (top ? 'btn-danger' : 'btn-primary') + '"></button>')
+                        .text(top ? '取消置顶' : '置顶')
+                        .on('click', function () { setTop(a.id, top ? 0 : 1, this); })
+                );
+                $ops.find('.ops').append(
+                    $('<a class="btn btn-sm"></a>').attr('href', ctx + '/article/detail/' + a.id).text('查看')
+                );
+
+                $tbody.append(
+                    $('<tr></tr>')
+                        .append($('<td></td>').text(a.id))
+                        .append($('<td></td>').text(a.title))
+                        .append($('<td></td>').text(a.authorName || ''))
+                        .append($('<td></td>').text(a.publishTime || ''))
+                        .append($('<td></td>').text(a.viewCount || 0))
+                        .append($('<td></td>').append(top
+                            ? $('<span class="badge-status s1"></span>').text('已置顶')
+                            : $('<span class="muted"></span>').text('—')))
+                        .append($ops)
+                );
+            });
+
+            return $table.append($tbody);
+        }
+
+        function render(data) {
+            var $box = $('#listBox').empty();
+            $box.append(state.tab === 'pending' ? renderPending(data) : renderPublished(data));
 
             var $pager = $('#pager').empty();
             if (data.pages > 1) {
@@ -129,8 +164,9 @@
 
         function load(page) {
             state.page = page || 1;
+            var url = state.tab === 'pending' ? '/admin/article/pending' : '/admin/article/published';
             $.ajax({
-                url: ctx + '/admin/article/pending',
+                url: ctx + url,
                 type: 'GET',
                 dataType: 'json',
                 data: { page: state.page, size: state.size },
@@ -157,21 +193,43 @@
                 dataType: 'json',
                 data: JSON.stringify({ articleId: articleId, pass: pass, rejectReason: reason }),
                 success: function (res) {
-                    if (res.code === 200) {
-                        toast(res.msg, 'ok');
-                        load(state.page);
-                    } else {
-                        toast(res.msg || '操作失败', 'error');
-                        $btn.prop('disabled', false);
-                    }
+                    if (res.code === 200) { toast(res.msg, 'ok'); load(state.page); }
+                    else { toast(res.msg || '操作失败', 'error'); $btn.prop('disabled', false); }
                 },
                 error: function (xhr) {
-                    var msg = (xhr.responseJSON && xhr.responseJSON.msg) || '操作失败';
-                    toast(msg, 'error');
+                    toast((xhr.responseJSON && xhr.responseJSON.msg) || '操作失败', 'error');
                     $btn.prop('disabled', false);
                 }
             });
         }
+
+        function setTop(articleId, isTop, btn) {
+            var $btn = $(btn).prop('disabled', true);
+            $.ajax({
+                url: ctx + '/admin/article/top',
+                type: 'POST',
+                contentType: 'application/json;charset=UTF-8',
+                dataType: 'json',
+                data: JSON.stringify({ articleId: articleId, isTop: isTop }),
+                success: function (res) {
+                    if (res.code === 200) { toast(res.msg, 'ok'); load(state.page); }
+                    else { toast(res.msg || '操作失败', 'error'); $btn.prop('disabled', false); }
+                },
+                error: function (xhr) {
+                    toast((xhr.responseJSON && xhr.responseJSON.msg) || '操作失败', 'error');
+                    $btn.prop('disabled', false);
+                }
+            });
+        }
+
+        $('#tabs').on('click', '.tab', function () {
+            $(this).addClass('active').siblings().removeClass('active');
+            state.tab = $(this).data('tab');
+            $('#tabHint').text(state.tab === 'pending'
+                ? '通过后状态变为「已通过」并写入发布时间；驳回必须填写原因，作者可修改后重新提交。'
+                : '首页按「置顶 → 发布时间倒序」排序，置顶的文章会固定在最前面。');
+            load(1);
+        });
 
         load(1);
     })();

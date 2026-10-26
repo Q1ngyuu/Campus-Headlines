@@ -48,4 +48,11 @@ public class PageController {
     public String materialPage() {
         return "material/list";
     }
+
+    /** 我的收藏页（需要登录） */
+    @GetMapping("/favorite")
+    public String favoritePage(Model model, HttpSession session) {
+        model.addAttribute("loginUser", SessionUtil.getLoginUser(session));
+        return "favorite/list";
+    }
 }

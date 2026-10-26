@@ -474,6 +474,47 @@ upload.video-ext=mp4,webm,ogg
 `audit()` 里再查一次数据库的 `role`——Session 里的角色是登录时的快照，
 用户被降权后 Session 不会立刻失效，服务层才是最后防线。
 
+### 收藏与置顶（轻量功能）
+
+#### 收藏
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/favorite/toggle` | 切换收藏，`articleId` 可走 query 或 JSON body |
+| GET | `/favorite/list` | 我的收藏（联表文章 + 栏目，只出 status=2） |
+| GET | `/favorite` | 我的收藏页 |
+
+`toggle` 在一个事务里“先查后写”：查到了就删（取消），没查到就插（收藏）。
+并发下两个请求可能同时判断为“未收藏”，此时唯一索引 `uk_favorite_user_article(user_id, article_id)`
+会让第二个插入失败，代码捕获 `DuplicateKeyException` 后按“已收藏”返回，不给前端抛 500。
+
+列表走的是 XML 联表查询（`resources/mapper/FavoriteMapper.xml`）：
+
+```sql
+SELECT f.id AS favorite_id, f.article_id, f.create_time AS favorite_time,
+       a.title, a.cover_image, a.publish_time, a.view_count, a.is_top,
+       c.name AS category_name
+FROM favorite f
+         INNER JOIN article a ON a.id = f.article_id
+         LEFT JOIN category c ON c.id = a.category_id
+WHERE f.user_id = #{userId}
+  AND a.status = 2
+ORDER BY f.create_time DESC, f.id DESC
+```
+
+`a.status = 2` 这个条件很关键：文章被驳回或退回草稿后，收藏列表里自动“消失”，
+作者重新提交并通过后才又出现——不需要额外清理收藏记录。
+
+#### 置顶
+
+`POST /admin/article/top`，body `{"articleId": 12, "isTop": 1}`，仅管理员可用。
+
+更新语句带上了状态条件：`UPDATE article SET is_top=? WHERE id=? AND status=2`，
+避免文章刚好被撤下时还被置顶。首页排序本来就是 `is_top DESC, publish_time DESC`，
+所以置顶后不需要改查询逻辑，刷新即可看到它排在最前。
+
+管理后台（`/admin/article/page`）现在有两个页签：**待审核** 和 **已通过（可置顶）**，
+后者每行带“置顶/取消置顶”按钮，并显示当前置顶状态。
 ### MyBatis 动态 SQL 与 Spring AOP
 
 #### 1. 手写动态 SQL（`resources/mapper/ArticleMapper.xml`）
@@ -620,8 +661,9 @@ public void serviceMethods() {}
 - [x] 素材上传（图片/视频，落 `material` 表 + `/upload/**` 回显）
 - [x] 资讯发布（草稿/提交审核，封面与内嵌素材关联 article_material）
 - [x] 管理员审核（待审核 → 通过/驳回，`@Transactional` + 条件更新）
+- [x] 管理员置顶 / 取消置顶（首页置顶优先）
 - [x] 首页列表分页 + 详情页 + 浏览量原子自增
-- [x] 栏目筛选、收藏/取消收藏
+- [x] 栏目筛选、收藏/取消收藏（含“我的收藏”页）
 - [x] JSP 视图与静态资源样式（首页/详情/发布/我的/审核）
 - [x] 统一返回体 `Result` + 全局异常处理 `@RestControllerAdvice`
 - [x] MyBatis 手写动态 SQL（ArticleMapper.xml 的 <where> + <if>）

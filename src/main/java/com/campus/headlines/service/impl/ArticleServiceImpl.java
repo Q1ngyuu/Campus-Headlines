@@ -374,6 +374,49 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
+    public PageVO<ArticleListVO> listPublishedForAdmin(long page, long size) {
+        // 与首页同样是 status=2，但管理员需要看到置顶状态并调整，排序保持前端一致
+        LambdaQueryWrapper<Article> query = new LambdaQueryWrapper<Article>()
+                .eq(Article::getStatus, Article.STATUS_APPROVED)
+                .orderByDesc(Article::getIsTop)
+                .orderByDesc(Article::getPublishTime)
+                .orderByDesc(Article::getId);
+        return buildPageVO(articleMapper.selectPage(buildPage(page, size), query));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void top(Long articleId, Integer isTop, Long adminUserId) {
+        if (adminUserId == null) {
+            throw new BusinessException(Result.CODE_UNAUTHORIZED, "请先登录");
+        }
+        User admin = userMapper.selectById(adminUserId);
+        if (admin == null || admin.getRole() == null || admin.getRole() != ROLE_ADMIN) {
+            throw new BusinessException(Result.CODE_FORBIDDEN, "仅管理员可以操作置顶");
+        }
+        if (isTop == null || (isTop != 0 && isTop != 1)) {
+            throw new BusinessException("置顶参数不合法");
+        }
+        Article article = articleMapper.selectById(articleId);
+        if (article == null) {
+            throw new BusinessException(Result.CODE_NOT_FOUND, "资讯不存在");
+        }
+        if (!Integer.valueOf(Article.STATUS_APPROVED).equals(article.getStatus())) {
+            throw new BusinessException("只有已通过的资讯可以置顶");
+        }
+
+        // 条件更新：带着 status=2 做 where，避免文章刚好被撤下时还被置顶
+        int updated = articleMapper.update(null, new LambdaUpdateWrapper<Article>()
+                .eq(Article::getId, articleId)
+                .eq(Article::getStatus, Article.STATUS_APPROVED)
+                .set(Article::getIsTop, isTop));
+        if (updated == 0) {
+            throw new BusinessException("资讯状态已变更，请刷新后重试");
+        }
+        log.info("置顶状态更新: articleId={}, isTop={}, adminId={}", articleId, isTop, adminUserId);
+    }
+
+    @Override
     public ArticleEditVO getForEdit(Long articleId, Long userId) {
         Article article = articleMapper.selectById(articleId);
         if (article == null) {
