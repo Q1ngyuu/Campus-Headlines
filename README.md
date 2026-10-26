@@ -24,13 +24,15 @@
 | AspectJ | 1.9.22.1 | 1.9.20 只支持到 Java 18，故上调 |
 | 文件上传 | commons-fileupload 1.5 + commons-io 2.11.0 | 配合 `CommonsMultipartResolver` |
 | 日志 | Log4j2 2.24.3 + slf4j-api 1.7.36 | 不要同时引入 logback |
-| Web 容器 | **Tomcat 9.0.x** | ⚠️ 必须是 9.0.x，见下方说明 |
+| Web 容器 | **Tomcat 9.0.123**（本机已装） | Windows 服务 `Tomcat9`，监听 8080；⚠️ 必须是 9.0.x，见下方说明 |
 
 > **为什么是 Java 21**：本机只有 JDK 21（另有 11.0.14 和 1.8.0_472 备用），`JAVA_HOME` 指向 21，所以直接以 21 为目标，不搞「用 21 编 8」的将就方案。Spring 5.3.30 起补充了对 JDK 21 的支持，5.3.39 是这条线的最终版，配合上调后的 AspectJ 1.9.22.1 / Log4j2 2.24.3 / Jackson 2.17.3 / Druid 1.2.24 在 JDK 21 上没有已知坑。
 >
 > 要退回更低版本（例如课程要求 JDK 8）：只改 `pom.xml` 里 `<maven.compiler.release>` 一处即可，Spring 5.3.39 本身覆盖 8–21，不必换依赖。
 
-> ⚠️ **Tomcat 10 / 11 不能直接用**：Tomcat 10 起 servlet API 从 `javax.*` 改为 `jakarta.*`，部署本项目会直接抛 `ClassNotFoundException: javax.servlet.Filter`。本机 `C:\Users\11270\Downloads\apache-tomcat-10.1.59-windows-x64` 是 **10.1.59**，属于这一类，**请另下 Tomcat 9.0.x**（建议 9.0.10x 最新版，支持 JDK 21）。
+> ⚠️ **Tomcat 10 / 11 不能直接用**：Tomcat 10 起 servlet API 从 `javax.*` 改为 `jakarta.*`，部署本项目会直接抛 `ClassNotFoundException: javax.servlet.Filter`。
+>
+> 本机已装的是 **9.0.123**，正确；但 `C:\Users\11270\Downloads\apache-tomcat-10.1.59-windows-x64` 那份是 **10.1.59**，属于不能用的一类，别误用。
 >
 > 若坚持用 Tomcat 10.1，则整套要迁到 Jakarta：Spring 6.x + MyBatis-Plus 3.5.9+ + `jakarta.servlet-api`，属于另一条技术路线，不在本项目范围内。
 
@@ -110,22 +112,38 @@ Get-Content .\src\main\resources\sql\schema.sql -Raw -Encoding UTF8 |
 
 ### 1. 准备环境
 
-本机现状（2026-10 体检）：
+本机现状（2026-10 实测确认）：
 
 | 项 | 状态 |
 | --- | --- |
 | JDK 21.0.2 | ✅ 已装，`JAVA_HOME=D:\soft\Java\jdk-21` |
-| MySQL 8.0.44 | ✅ 已装，服务 `MySQL80` 正在运行 |
+| MySQL 8.0.44 | ✅ 已装，服务 `MySQL80` 运行中，`campus_headlines` 库已建 |
 | Maven | ⚠️ 未装独立版本，用 IDEA 2024.1 自带的 3.9.6 |
-| Tomcat 9 | ❌ 未装（只有 10.1.59，**不能用**） |
+| Tomcat 9.0.123 | ✅ **已装并运行**，Windows 服务名 `Tomcat9`，端口 8080 |
 | IDEA | ✅ 2024.1（`D:\Program Files\JetBrains\IntelliJ IDEA 2024.1`） |
 
-所以只剩两步要补：**下载 Tomcat 9.0.x**（解压即用），以及可选地装独立 Maven。
+Tomcat 的安装信息：
 
-Tomcat 9 下载地址：<https://dlcdn.apache.org/tomcat/tomcat-9/>（选最新 9.0.x 的 `windows-x64.zip`）。
-拿到后解压到例如 `D:\soft\apache-tomcat-9.0.xx`，解压即用，无需安装、无需配环境变量。
+| 项 | 值 |
+| --- | --- |
+| 安装目录 | `D:\Program Files\Apache Software Foundation\Tomcat 9.0` |
+| 安装包 | `C:\Users\11270\Downloads\apache-tomcat-9.0.123.exe`（Windows 服务版安装器） |
+| 服务名 / 账户 | `Tomcat9` / `NT Authority\LocalService` |
+| 启动类型 | **手动（Manual）** —— 开机不会自启，需 `net start Tomcat9` |
+| 访问地址 | <http://localhost:8080/> |
+
+> ⚠️ 安装目录的 ACL 只授予服务账户与管理员，普通用户会话读不了、也拷不进文件。
+> **部署 war 必须用管理员权限的 PowerShell**（见「5. 部署到 Tomcat」）。
+>
+> 另外 `C:\Users\11270\Downloads\apache-tomcat-10.1.59-windows-x64` 是 **Tomcat 10.1**，
+> Jakarta 命名空间，跑不了本项目，别用；留着或删掉都行。
+
+所以环境已齐全，只剩可选地装一个独立 Maven（不装就用 IDEA 自带的，见「4. 构建」）。
 
 ### 2. 建库
+
+> 本机 `campus_headlines` 库**已创建**（utf8mb4 / utf8mb4_0900_ai_ci），6 张表也已导入。
+> 换机器或重建时才需要执行下面的语句。
 
 ```sql
 CREATE DATABASE IF NOT EXISTS campus_headlines
@@ -133,7 +151,13 @@ CREATE DATABASE IF NOT EXISTS campus_headlines
     COLLATE utf8mb4_0900_ai_ci;   -- MySQL 8 默认；5.7 用 utf8mb4_general_ci
 ```
 
-> 业务表在后续步骤中创建；现在库是空的也能正常启动（MyBatis 启动时不校验表是否存在）。
+建表脚本导入：
+
+```powershell
+$mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
+Get-Content .\src\main\resources\sql\schema.sql -Raw -Encoding UTF8 |
+    & $mysql -u root -p --default-character-set=utf8mb4 campus_headlines
+```
 
 ### 3. 配置数据库连接（密码不要进仓库）
 
@@ -142,7 +166,7 @@ CREATE DATABASE IF NOT EXISTS campus_headlines
 | 文件 | 是否入库 | 用途 |
 | --- | --- | --- |
 | `properties/jdbc.properties` | ✅ 入库 | 通用模板，密码是占位符 |
-| `properties/jdbc-local.properties` | ❌ 已 gitignore | 本地真实账号密码，覆盖模板 |
+| `properties/jdbc-local.properties` | ❌ 已 gitignore | 本地真实账号密码，覆盖模板（**本机已配好**） |
 
 `applicationContext.xml` 里两个都会加载，后者覆盖前者，且后者不存在时也不报错：
 
@@ -161,6 +185,7 @@ jdbc.password=你的密码
 ```
 
 > ⚠️ 仓库是公开的，**不要把真实密码写进 `jdbc.properties` 再提交**。改了本地文件后 `git status` 若看见它，说明 gitignore 没生效，别 `git add`。
+> 本机这个文件已经存在且已连通，**不要删除**，删了应用会退回模板占位符、连不上库。
 
 `serverTimezone` 必须和 MySQL 时区一致（本机 `@@time_zone = SYSTEM`，即东八区，用 `Asia/Shanghai` 正确），否则查询时间会差 8 小时。
 
@@ -187,29 +212,50 @@ mvn clean package -DskipTests
 
 ### 5. 部署到 Tomcat
 
-**方式 A：拷 war 包（最快）**
+本机的 Tomcat 9.0.123 是**安装成 Windows 服务**的，安装目录在 `D:\Program Files\...`，
+ACL 只给服务账户和管理员，所以下面两种方式都要注意权限。
 
-```bash
-cp target/campus-headlines.war $CATALINA_HOME/webapps/
-$CATALINA_HOME/bin/startup.sh      # Windows: startup.bat
+**方式 A：拷 war 包（需管理员 PowerShell）**
+
+```powershell
+# 以管理员身份打开 PowerShell，否则 Copy-Item 会 Access denied
+Copy-Item "D:\Users\11270\Documents\deepseek-harness\default-workspace\Campus-Headlines\target\campus-headlines.war" `
+          "D:\Program Files\Apache Software Foundation\Tomcat 9.0\webapps\" -Force
 ```
 
-**方式 B：IDEA 配置**
+Tomcat 服务默认开启热部署，几秒后自动解压；没反应就重启服务：
+
+```powershell
+Restart-Service Tomcat9     # 或 net stop Tomcat9 && net start Tomcat9
+```
+
+**方式 B：IDEA 配置（开发期推荐，免拷包、改代码热更新）**
 
 1. `File → Project Structure → Modules`，确认 Web Facet 的 Web Resource Directory 指向 `src/main/webapp`
-2. `Run → Edit Configurations → + → Tomcat Server → Local`，选择本机 Tomcat 9
+2. `Run → Edit Configurations → + → Tomcat Server → Local`，Tomcat Home 选
+   `D:\Program Files\Apache Software Foundation\Tomcat 9.0`
 3. `Deployment` 页签 `+ → Artifact`，选 `campus-headlines:war exploded`
-4. Application context 设为 `/campus-headlines`
+4. Application context 设为 `/campus-headlines`，端口与已运行的 `Tomcat9` 服务错开（例如 8081），
+   或先 `Stop-Service Tomcat9` 释放 8080
 5. 启动后访问 <http://localhost:8080/campus-headlines/>
+
+> 若在 IDEA 里启动报端口占用，说明 `Tomcat9` 服务正在占着 8080，先停服务。
 
 ### 6. 验证
 
 打开 <http://localhost:8080/campus-headlines/>，能看到 "校园头条 环境就绪" 页面即部署成功。
 
-再看控制台日志：
+再看控制台/日志：
 - 出现 `Root WebApplicationContext: initialization completed` → 根容器 OK
 - 出现 `Initializing Spring DispatcherServlet 'dispatcher'` → MVC 容器 OK
 - 无 `ClassNotFoundException` / `BeanCreationException` → 配置无误
+- 若报 `Access denied for user` → `jdbc-local.properties` 缺失或密码不对
+
+查看服务日志（服务方式运行时日志在安装目录，需管理员权限）：
+
+```powershell
+Get-Content "D:\Program Files\Apache Software Foundation\Tomcat 9.0\logs\catalina.$(Get-Date -f yyyy-MM-dd).log" -Tail 50
+```
 
 ---
 
@@ -269,9 +315,11 @@ public String upload(MultipartFile file) { ... }
 | 现象 | 原因与处理 |
 | --- | --- |
 | 启动报 `ClassNotFoundException: javax.servlet.Filter` | 用了 Tomcat 10+。换 Tomcat 9，或整体升级到 Spring 6 + jakarta |
+| 拷 war 到 webapps 报 `Access denied` / 拒绝访问 | 安装目录 ACL 只给服务账户与管理员，用**管理员** PowerShell |
+| `localhost:8080` 打不开 | 服务是**手动**启动类型，执行 `net start Tomcat9` |
 | 中文乱码 | 检查 `web.xml` 的 `CharacterEncodingFilter`、响应 `StringHttpMessageConverter` 是否为 UTF-8，以及 MySQL 库/表是否为 `utf8mb4` |
 | 时间差 8 小时 | `jdbc.url` 的 `serverTimezone` 与 MySQL 时区不一致 |
-| 启动报 `Access denied for user` | `jdbc.properties` 账号密码不对，或 MySQL 未启动 |
+| 启动报 `Access denied for user` | `jdbc-local.properties` 缺失或账号密码不对，或 MySQL 未启动 |
 | 启动报 `Public Key Retrieval is not allowed` | URL 缺 `allowPublicKeyRetrieval=true`（MySQL 8 + `caching_sha2_password`） |
 | 访问页面 404 | war 名 / Application context 与访问路径不一致，注意 `/campus-headlines/` 前缀 |
 | CSS/JS 404 | 未配置 `<mvc:resources>`，或路径没带 `/static/` 前缀 |
