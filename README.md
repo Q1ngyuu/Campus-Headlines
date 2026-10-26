@@ -65,7 +65,8 @@ Campus-Headlines/
     │   │   │   ├── applicationContext.xml   # 根容器：Service/Mapper/数据源/事务
     │   │   │   └── spring-mvc.xml           # MVC 容器：Controller/视图/上传/拦截器
     │   │   ├── properties/
-    │   │   │   └── jdbc.properties          # 数据库连接模板（需自己填）
+    │   │   │   ├── jdbc.properties          # 数据库连接模板（需自己填）
+│   │   │   └── upload.properties        # 上传目录、大小与扩展名白名单
     │   │   ├── mapper/                      # MyBatis XML（classpath:mapper/**/*.xml）
     │   │   ├── sql/
     │   │   │   └── schema.sql               # 建表脚本（6 张表 + 外键 + 初始化栏目）
@@ -344,6 +345,65 @@ Session 超时在 `web.xml` 设 30 分钟。
 > ⚠️ `<mvc:interceptors>` 里至少要有一个 `<mvc:interceptor>` 子元素，空标签会让 Spring 启动直接抛
 > `cvc-complex-type.2.4.b: … 'mvc:interceptors' 的内容不完整`，整个应用起不来。
 
+### 素材上传与管理（已实现）
+
+**接口一览**
+
+| 方法 | 路径 | 参数 | 说明 |
+| --- | --- | --- | --- |
+| POST | `/material/upload` | `multipart/form-data`，字段名 `file` | 落盘 + 写 `material` 表 |
+| GET | `/material/list` | — | 当前用户的素材，按上传时间倒序 |
+| DELETE | `/material/{id}` | — | 删除（校验归属 + 是否被引用） |
+| GET | `/material` | — | 素材管理页 |
+
+**存储结构**
+
+```
+D:/campus-upload/202610/afacfbbbd66d47b38658e4713a4931e0.png   ← 磁盘（upload.base-path）
+                             ↕
+/upload/202610/afacfbbbd66d47b38658e4713a4931e0.png            ← 对外地址（upload.url-prefix）
+```
+
+磁盘目录刻意放在 **webapp 之外**，war 重新部署不会清空用户文件；访问由
+`<mvc:resources mapping="/upload/**" location="file:${upload.base-path}/"/>` 提供。
+路径与大小限制都在 [`properties/upload.properties`](src/main/resources/properties/upload.properties)：
+
+```properties
+upload.base-path=D:/campus-upload
+upload.url-prefix=/upload
+upload.max-image-size=10485760     # 图片 10MB
+upload.max-video-size=52428800     # 视频 50MB
+upload.image-ext=jpg,jpeg,png,gif,webp
+upload.video-ext=mp4,webm,ogg
+```
+
+**安全设计（前端 accept 只是体验，真正的防线在服务端）**
+
+| 风险 | 处理 |
+| --- | --- |
+| 上传可执行文件（.jsp/.sh） | 扩展名白名单，不在名单内直接拒绝 |
+| 中文名、空格、`../` 路径穿越 | **落盘文件名一律用 UUID**，原始名只入库展示 |
+| 超大文件打爆磁盘 | 双重校验：`MultipartResolver`（请求级）+ `FileUploadUtil`（按类型：图片 10MB / 视频 50MB） |
+| 越权删除他人素材 | `delete(id, userId)` 校验 `material.user_id` |
+| 删除被引用的素材导致资讯缺图 | 删除前查 `article_material`，被引用则拒绝并提示引用数 |
+
+> ⚠️ **上传大小上限已调整**：`MultipartResolver` 从 10MB/50MB 放宽到 **单文件 50MB / 单请求 100MB**，
+> 否则 mp4 基本传不上去。原来 10MB 的限制改由 `FileUploadUtil` 按图片类型执行，视频单独 50MB。
+
+**删除策略：物理删除（不是逻辑删除）**
+
+素材是用户自己的中间产物、可重新上传；磁盘只增不减会很快吃满，而逻辑删除要加状态字段、
+文件还照样占空间。为防误删，删除前会检查是否被资讯引用，被引用时提示
+「该素材已被 N 篇资讯引用，请先在资讯中移除后再删除」。
+
+**发布页的素材关联**
+
+[`article/publish.jsp`](src/main/webapp/WEB-INF/views/article/publish.jsp) 里有两个选择器：
+封面图（单选）和内嵌素材（多选），数据都来自 `/material/list`。提交时
+`POST /article/publish`（提交审核）或 `/article/draft`（存草稿），
+`ArticleServiceImpl` 会把 `materialIds` **先删后插**写入 `article_material`；
+封面选中的素材也会自动计入关联表，避免“封面图不在素材列表里”的孤儿引用。
+
 ### 两个必踩的坑（已处理）
 
 1. **`@Resource` 在 JDK 11+ 编译不过**：`javax.annotation` 包已从 JDK 移除，必须显式引入
@@ -391,10 +451,11 @@ Session 超时在 `web.xml` 设 30 分钟。
 - [x] 建表：user / category / material / article / article_material / favorite（`resources/sql/schema.sql`）
 - [x] 数据设计文档：E-R 图、状态流转、数据字典（`docs/database-design.md`）
 - [x] entity（6 个）+ mapper（6 个，继承 BaseMapper）
-- [ ] Service 层与事务
+- [x] Service 层与事务（User/Category/Material/Article，`@Transactional`）
 - [x] 登录/注册（Session + BCrypt），启用 `LoginInterceptor`
-- [ ] 素材上传（图片/视频，落 `material` 表 + `/upload/**` 回显）
-- [ ] 资讯发布与审核（草稿 → 待审核 → 通过/驳回）
+- [x] 素材上传（图片/视频，落 `material` 表 + `/upload/**` 回显）
+- [x] 资讯发布（草稿/提交审核，封面与内嵌素材关联 article_material）
+- [ ] 管理员审核（待审核 → 通过/驳回）
 - [ ] 首页列表分页 + 详情页 + 浏览量自增
 - [ ] 栏目筛选、收藏/取消收藏
 - [ ] JSP 视图与静态资源样式

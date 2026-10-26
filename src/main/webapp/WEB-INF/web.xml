@@ -36,7 +36,10 @@
         </init-param>
         <init-param>
             <param-name>forceResponseEncoding</param-name>
-            <param-value>true</param-value>
+            <!-- 设为 false：否则图片/视频等二进制响应也会被追加上 charset=UTF-8，
+                 变成 image/png;charset=UTF-8，虽然浏览器能显示但不规范。
+                 JSP 与 JSON 各自已显式声明 UTF-8，不受影响 -->
+            <param-value>false</param-value>
         </init-param>
     </filter>
     <filter-mapping>

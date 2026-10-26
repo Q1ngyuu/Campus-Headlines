@@ -20,6 +20,13 @@
          ============================================================ -->
     <context:component-scan base-package="com.campus.headlines.controller"/>
 
+    <!-- 上传目录的占位符：mvc:resources 的 file:${upload.base-path} 需要在这里解析。
+         MVC 子容器看不到根容器的 PropertyPlaceholder，所以单独声明一份 -->
+    <context:property-placeholder location="classpath:properties/upload.properties"
+                                  file-encoding="UTF-8"
+                                  ignore-resource-not-found="true"
+                                  ignore-unresolvable="true"/>
+
     <!-- ============================================================
          2. 注解驱动
          - 处理器映射/适配器、@ResponseBody 的 JSON 转换器由框架自动注册
@@ -61,8 +68,9 @@
          否则 CSS/JS/图片会 404
          ============================================================ -->
     <mvc:resources mapping="/static/**" location="/static/"/>
-    <!-- 上传文件回显目录（后面做图片上传时会用到） -->
-    <mvc:resources mapping="/upload/**" location="/upload/"/>
+    <!-- 上传文件：磁盘目录在 webapp 之外（upload.base-path），
+         用 file: 前缀直接映射，war 重新部署也不会丢文件 -->
+    <mvc:resources mapping="/upload/**" location="file:${upload.base-path}/"/>
 
     <!-- 兜底：未匹配到任何 Controller 的请求交回 Tomcat 默认 Servlet -->
     <mvc:default-servlet-handler/>
@@ -70,14 +78,16 @@
     <!-- ============================================================
          5. 文件上传解析器
          bean id 必须是 multipartResolver，否则 DispatcherServlet 认不出来
-         - 单文件 10MB = 10485760
-         - 单次请求总上限 50MB = 52428800
+
+         这里放宽到 单文件 50MB / 单次请求 100MB：原来的 10MB/50MB
+         会让 mp4 基本传不上去。类型级限制（图片 10MB、视频 50MB）
+         由 FileUploadUtil 按扩展名二次校验，见 upload.properties
          ============================================================ -->
     <bean id="multipartResolver"
           class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
         <property name="defaultEncoding" value="UTF-8"/>
-        <property name="maxUploadSize" value="52428800"/>
-        <property name="maxUploadSizePerFile" value="10485760"/>
+        <property name="maxUploadSize" value="104857600"/>
+        <property name="maxUploadSizePerFile" value="52428800"/>
         <!-- 小于该阈值的文件只放内存，超过才写临时文件 -->
         <property name="maxInMemorySize" value="4096"/>
         <!-- 延迟解析：在 Controller 里访问 getFile 时才解析，异常更好处理 -->

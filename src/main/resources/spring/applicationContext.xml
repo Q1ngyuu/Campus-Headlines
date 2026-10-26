@@ -23,15 +23,16 @@
     <!-- jdbc.properties 是入库的模板（占位符）；
          jdbc-local.properties 是本地私有配置（已 gitignore），存在时覆盖模板里的值，
          这样真实密码不会进 git。不存在时也不报错 -->
-    <context:property-placeholder location="classpath:properties/jdbc.properties,classpath:properties/jdbc-local.properties"
+    <context:property-placeholder location="classpath:properties/jdbc.properties,classpath:properties/jdbc-local.properties,classpath:properties/upload.properties"
                                   file-encoding="UTF-8"
                                   ignore-resource-not-found="true"
                                   ignore-unresolvable="true"/>
 
     <!-- ============================================================
          2. 只扫描 Service 层（Controller 在 spring-mvc.xml 里扫描）
+         util 包里有需要注入配置的组件（FileUploadUtil），必须纳入扫描
          ============================================================ -->
-    <context:component-scan base-package="com.campus.headlines.service"/>
+    <context:component-scan base-package="com.campus.headlines.service,com.campus.headlines.util"/>
 
     <!-- ============================================================
          3. 数据源：Druid
