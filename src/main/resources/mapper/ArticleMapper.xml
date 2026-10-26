@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  资讯 Mapper 的 XML 部分。
+  命名空间必须是 Mapper 接口的全限定名，语句 id 必须与接口方法名一致。
+
+  说明：本项目单表 CRUD 全部走 MyBatis-Plus 的条件构造器（见 ArticleServiceImpl），
+  这个 XML 专门用来演示“手写动态 SQL”，对应 Mapper 接口的 searchArticles 方法。
+-->
+<mapper namespace="com.campus.headlines.mapper.ArticleMapper">
+
+    <!-- 结果映射：显式列出列名 → 属性，不依赖 mapUnderscoreToCamelCase 的隐式规则 -->
+    <resultMap id="BaseResultMap" type="com.campus.headlines.entity.Article">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="title" property="title"/>
+        <result column="cover_image" property="coverImage"/>
+        <result column="content" property="content"/>
+        <result column="status" property="status"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="view_count" property="viewCount"/>
+        <result column="is_top" property="isTop"/>
+        <result column="publish_time" property="publishTime"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <!-- 公共列清单，避免 SELECT * 把 mediumtext 正文也带出来（列表场景用不到就不再查它） -->
+    <sql id="Base_Column_List">
+        id, user_id, category_id, title, cover_image, content,
+        status, reject_reason, view_count, is_top,
+        publish_time, create_time, update_time
+    </sql>
+
+    <!--
+      动态条件查询：
+        1. categoryId 非空   → AND category_id = #{categoryId}
+        2. keyword   非空   → AND (title LIKE ... OR content LIKE ...)
+        3. status    非空   → AND status = #{status}
+      三个条件都可缺省，<where> 会自动处理第一个 AND 以及全空的情况（不生成 WHERE）。
+      排序：置顶优先，其次按发布时间倒序，最后用 id 兜底保证结果稳定。
+    -->
+    <select id="searchArticles" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM article
+        <where>
+            <if test="categoryId != null">
+                AND category_id = #{categoryId}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (title LIKE CONCAT('%', #{keyword}, '%')
+                     OR content LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+        </where>
+        ORDER BY is_top DESC, publish_time DESC, id DESC
+    </select>
+
+</mapper>

@@ -65,6 +65,9 @@ public class ArticleServiceImpl implements ArticleService {
     private static final long DEFAULT_SIZE = 10;
     private static final long MAX_SIZE = 50;
 
+    /** 不分页的动态查询最多返回多少条 */
+    private static final int MAX_SEARCH_SIZE = 50;
+
     @Resource
     private ArticleMapper articleMapper;
 
@@ -354,6 +357,20 @@ public class ArticleServiceImpl implements ArticleService {
         vo.setFavorite(favorite);
 
         return vo;
+    }
+
+    @Override
+    public List<ArticleListVO> searchArticles(Long categoryId, String keyword, Integer status) {
+        // 走 resources/mapper/ArticleMapper.xml 里的手写动态 SQL（<where> + <if>）
+        List<Article> records = articleMapper.searchArticles(categoryId, keyword, status);
+        if (records == null || records.isEmpty()) {
+            return new ArrayList<>();
+        }
+        // 不分页的接口必须有兜底上限，防止一次把整表拉出来
+        if (records.size() > MAX_SEARCH_SIZE) {
+            records = records.subList(0, MAX_SEARCH_SIZE);
+        }
+        return enrich(new ArrayList<>(records));
     }
 
     @Override

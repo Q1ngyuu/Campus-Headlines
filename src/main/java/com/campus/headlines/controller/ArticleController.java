@@ -3,6 +3,7 @@ package com.campus.headlines.controller;
 import com.campus.headlines.common.BusinessException;
 import com.campus.headlines.common.Result;
 import com.campus.headlines.dto.ArticleDTO;
+import com.campus.headlines.entity.Article;
 import com.campus.headlines.service.ArticleService;
 import com.campus.headlines.service.CategoryService;
 import com.campus.headlines.util.SessionUtil;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpSession;
+import java.util.List;
 
 /**
  * 资讯接口：投稿、浏览。
@@ -104,6 +106,31 @@ public class ArticleController {
             @RequestParam(value = "page", defaultValue = "1") long page,
             @RequestParam(value = "size", defaultValue = "10") long size) {
         return Result.success(articleService.listPublished(categoryId, keyword, page, size));
+    }
+
+    /**
+     * 动态条件查询（演示 MyBatis 手写动态 SQL）。
+     *
+     * <pre>
+     * GET /article/search?categoryId=1&keyword=图书馆&status=2
+     * </pre>
+     *
+     * <p>安全约束：非管理员无论传什么 status，都会被强制查“已通过”，
+     * 否则这个接口就成了草稿/待审核内容的越权入口。</p>
+     */
+    @GetMapping("/search")
+    @ResponseBody
+    public Result<List<ArticleListVO>> search(
+            @RequestParam(value = "categoryId", required = false) Long categoryId,
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "status", required = false) Integer status,
+            HttpSession session) {
+        UserVO loginUser = SessionUtil.getLoginUser(session);
+        boolean isAdmin = loginUser != null && loginUser.getRole() != null && loginUser.getRole() == 1;
+        if (!isAdmin) {
+            status = Article.STATUS_APPROVED;
+        }
+        return Result.success(articleService.searchArticles(categoryId, keyword, status));
     }
 
     /**

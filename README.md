@@ -55,6 +55,7 @@ Campus-Headlines/
     │   │   │   └── impl/        # 业务实现（@Service / @Transactional）
     │   │   ├── mapper/          # MyBatis-Plus Mapper 接口（6 个，已建）
     │   │   ├── entity/          # 数据库实体（6 个，已建）
+    │   │   ├── aspect/          # AOP 切面（LogAspect：日志/耗时/异常）
     │   │   ├── config/          # JavaConfig（ObjectMapper、跨域等）
     │   │   ├── interceptor/     # 拦截器（LoginInterceptor 已建，未启用）
     │   │   ├── util/            # 工具类（Result、加密、上传…）
@@ -67,7 +68,7 @@ Campus-Headlines/
     │   │   ├── properties/
     │   │   │   ├── jdbc.properties          # 数据库连接模板（需自己填）
 │   │   │   └── upload.properties        # 上传目录、大小与扩展名白名单
-    │   │   ├── mapper/                      # MyBatis XML（classpath:mapper/**/*.xml）
+    │   │   ├── mapper/                      # MyBatis XML（ArticleMapper.xml 动态 SQL）
     │   │   ├── sql/
     │   │   │   └── schema.sql               # 建表脚本（6 张表 + 外键 + 初始化栏目）
     │   │   └── log4j2.xml                   # 日志配置
@@ -473,6 +474,100 @@ upload.video-ext=mp4,webm,ogg
 `audit()` 里再查一次数据库的 `role`——Session 里的角色是登录时的快照，
 用户被降权后 Session 不会立刻失效，服务层才是最后防线。
 
+### MyBatis 动态 SQL 与 Spring AOP
+
+#### 1. 手写动态 SQL（`resources/mapper/ArticleMapper.xml`）
+
+接口方法：
+
+```java
+List<Article> searchArticles(@Param("categoryId") Long categoryId,
+                             @Param("keyword") String keyword,
+                             @Param("status") Integer status);
+```
+
+XML 用 `<where>` + `<if>`，三个条件都可缺省：
+
+```xml
+<select id="searchArticles" resultMap="BaseResultMap">
+    SELECT <include refid="Base_Column_List"/>
+    FROM article
+    <where>
+        <if test="categoryId != null">
+            AND category_id = #{categoryId}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (title LIKE CONCAT('%', #{keyword}, '%')
+                 OR content LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+    </where>
+    ORDER BY is_top DESC, publish_time DESC, id DESC
+</select>
+```
+
+**`<where>` 的价值**在实测日志里能直接看到——它自动处理了「第一个 AND」和「全空」两种情况：
+
+| 传入参数 | 实际生成的 WHERE |
+| --- | --- |
+| `keyword=图书馆, status=2` | `WHERE (title LIKE ... OR content LIKE ...) AND status = ?` |
+| `categoryId=2, status=2` | `WHERE category_id = ? AND status = ?` |
+| 全空（接口强制 status=2） | `WHERE status = ?` |
+
+如果手写字符串拼接，前两种要分别判断“是不是第一个条件”，第三种还要判断要不要加 `WHERE` 关键字；
+用 `<where>` 后只写 `AND`，由框架决定去掉哪一个。
+
+> 安全说明：该接口对非管理员会把 `status` 强制成 2（已通过），否则它就成了读取草稿/待审核内容的越权入口。
+
+#### 2. 日志切面（`aspect/LogAspect.java`）
+
+```java
+@Pointcut("execution(* com.campus.headlines.service..*.*(..))")
+public void serviceMethods() {}
+```
+
+三条通知：`@Before` 记方法名与参数、`@AfterReturning` 记耗时与返回值、`@AfterThrowing` 记异常类型与消息。
+业务代码里**没有一行日志语句**，加日志不用改 20 个类。
+
+实测日志（真实运行输出）：
+
+```
+[AOP-前] 调用 ArticleServiceImpl.listPublished() 入参=[null, null, 1, 10]
+[AOP-后] 完成 ArticleServiceImpl.listPublished() 耗时=308ms 返回=PageVO{page=1, size=10, total=2, records=2}
+[AOP-前] 调用 ArticleServiceImpl.searchArticles() 入参=[1, null, 2]
+[AOP-后] 完成 ArticleServiceImpl.searchArticles() 耗时=8ms 返回=ArrayList(size=1)
+[AOP-异常] ArticleServiceImpl.getDetail() 耗时=7ms 异常=BusinessException 消息=资讯不存在或未通过审核
+```
+
+几个不显眼但重要的实现细节：
+
+| 细节 | 原因 |
+| --- | --- |
+| 耗时用 `Deque<Long>` 而不是单个 `Long` | service 之间会互相调用（ArticleService 调 CategoryService/UserService），单值 ThreadLocal 会被内层覆盖，栈才能正确配对 |
+| 参数与返回值截断到 200 字符 | 否则一条日志可能刷几十行，反而看不清 |
+| DTO 只打类名 `RegisterDTO{…}` | 注册/登录 DTO 含密码，日志是最容易泄漏凭据的地方 |
+| `MultipartFile` 只打文件名与大小 | 避免把文件内容写进日志 |
+| `PageVO` 重写 `toString()` | 不然日志里只有 `PageVO@3d00673e`，看不出分页信息 |
+
+#### 3. `<aop:aspectj-autoproxy/>` 必须显式声明
+
+```xml
+<aop:aspectj-autoproxy proxy-target-class="true"/>
+```
+
+**`<tx:annotation-driven/>` 不会让 `@Aspect` 生效**——它只注册事务相关的 Advisor 与代理创建器，
+和 AspectJ 自动代理是两个独立机制。两行都写时，Spring 会把事务 Advisor 与切面 Advisor 织入同一个代理对象，
+不会出现“代理套代理”。
+
+`proxy-target-class="true"` 与 `tx:annotation-driven` 保持一致（CGLIB）：
+若用默认的 JDK 动态代理，Controller 里注入的类型必须写成接口（`ArticleService`），
+写成实现类（`ArticleServiceImpl`）会注入失败。
+
+切面所在的 `com.campus.headlines.aspect` 包必须纳入**根容器**的 component-scan，
+因为 service 的代理由根容器创建。
+
 ### 两个必踩的坑（已处理）
 
 1. **`@Resource` 在 JDK 11+ 编译不过**：`javax.annotation` 包已从 JDK 移除，必须显式引入
@@ -529,3 +624,5 @@ upload.video-ext=mp4,webm,ogg
 - [x] 栏目筛选、收藏/取消收藏
 - [x] JSP 视图与静态资源样式（首页/详情/发布/我的/审核）
 - [x] 统一返回体 `Result` + 全局异常处理 `@RestControllerAdvice`
+- [x] MyBatis 手写动态 SQL（ArticleMapper.xml 的 <where> + <if>）
+- [x] Spring AOP 日志切面（@Aspect + <aop:aspectj-autoproxy/>）

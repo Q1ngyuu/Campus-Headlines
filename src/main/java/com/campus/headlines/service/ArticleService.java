@@ -6,6 +6,8 @@ import com.campus.headlines.vo.ArticleEditVO;
 import com.campus.headlines.vo.ArticleListVO;
 import com.campus.headlines.vo.PageVO;
 
+import java.util.List;
+
 /**
  * 资讯业务接口：投稿、审核、浏览。
  *
@@ -74,6 +76,15 @@ public interface ArticleService {
      * 待审核列表（管理员用），按提交时间正序，先来先审。
      */
     PageVO<ArticleListVO> listPendingAudit(long page, long size);
+
+    /**
+     * 动态条件查询（演示 MyBatis 手写动态 SQL）。
+     *
+     * <p>与 {@link #listPublished} 的区别：这里走的是
+     * {@code resources/mapper/ArticleMapper.xml} 里的 {@code <where>} + {@code <if>} 写法，
+     * 不分页、返回全量（服务层截断到 50 条）。三个条件都可缺省。</p>
+     */
+    List<ArticleListVO> searchArticles(Long categoryId, String keyword, Integer status);
 
     /**
      * 编辑回填：取自己的草稿/被驳回稿件。

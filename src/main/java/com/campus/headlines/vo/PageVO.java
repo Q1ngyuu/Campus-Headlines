@@ -99,4 +99,14 @@ public class PageVO<T> implements Serializable {
     public void setPages(long pages) {
         this.pages = pages;
     }
+
+    /**
+     * 便于日志输出：不加 toString 的话 AOP 日志里只会看到 {@code PageVO@3d00673e}，
+     * 排查问题时看不出这页有几条、总数多少。
+     */
+    @Override
+    public String toString() {
+        return "PageVO{page=" + page + ", size=" + size + ", total=" + total
+                + ", records=" + (records == null ? 0 : records.size()) + '}';
+    }
 }

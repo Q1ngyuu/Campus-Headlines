@@ -6,14 +6,29 @@
 <beans xmlns="http://www.springframework.org/schema/beans"
        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:aop="http://www.springframework.org/schema/aop"
        xmlns:tx="http://www.springframework.org/schema/tx"
        xsi:schemaLocation="
            http://www.springframework.org/schema/beans
            http://www.springframework.org/schema/beans/spring-beans.xsd
            http://www.springframework.org/schema/context
            http://www.springframework.org/schema/context/spring-context.xsd
+           http://www.springframework.org/schema/aop
+           http://www.springframework.org/schema/aop/spring-aop.xsd
            http://www.springframework.org/schema/tx
            http://www.springframework.org/schema/tx/spring-tx.xsd">
+
+    <!-- ============================================================
+         0. 开启 @AspectJ 注解切面支持
+         说明：<tx:annotation-driven/> 只负责事务代理，它<b>不会</b>让 @Aspect 生效，
+         两者是独立的自动代理创建器，必须显式声明 aspectj-autoproxy。
+
+         proxy-target-class 与 tx:annotation-driven 保持一致用 true（CGLIB）：
+         Spring 会把事务 Advisor 和切面 Advisor 织入同一个代理对象，
+         不会产生“代理套代理”。若用 JDK 动态代理（默认 false），
+         Controller 里注入的类型必须写成接口（如 ArticleService），写成实现类会注入失败。
+         ============================================================ -->
+    <aop:aspectj-autoproxy proxy-target-class="true"/>
 
     <!-- ============================================================
          1. 读取 jdbc.properties
@@ -30,9 +45,10 @@
 
     <!-- ============================================================
          2. 只扫描 Service 层（Controller 在 spring-mvc.xml 里扫描）
-         util 包里有需要注入配置的组件（FileUploadUtil），必须纳入扫描
+         util 包里有需要注入配置的组件（FileUploadUtil）
+         aspect 包里的 @Aspect 必须由根容器管理，否则拦不到 service 的代理
          ============================================================ -->
-    <context:component-scan base-package="com.campus.headlines.service,com.campus.headlines.util"/>
+    <context:component-scan base-package="com.campus.headlines.service,com.campus.headlines.util,com.campus.headlines.aspect"/>
 
     <!-- ============================================================
          3. 数据源：Druid
