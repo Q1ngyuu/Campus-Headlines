@@ -1,31 +1,29 @@
-package com.campus.headlines.dto;
+package com.campus.headlines.vo;
 
+import java.io.Serializable;
 import java.util.List;
 
 /**
- * 资讯保存入参（草稿与提交审核共用）。
- *
- * <p>{@code materialIds} 是本次资讯使用的素材 id 列表，保存时写入 article_material；
- * 每次保存采用“先删后插”，因此前端每次都要带上完整列表，而不是增量。</p>
+ * 编辑草稿时回填表单用的数据（发布页 ?id=xxx 时拉取）。
  */
-public class ArticleSaveDTO {
+public class ArticleEditVO implements Serializable {
 
-    /** 资讯ID，null 表示新建 */
+    private static final long serialVersionUID = 1L;
+
     private Long id;
 
-    /** 栏目ID */
-    private Long categoryId;
-
-    /** 标题 */
     private String title;
 
-    /** 封面图路径（取自某个素材的 filePath），可为空 */
+    private Long categoryId;
+
     private String coverImage;
 
-    /** 正文 HTML */
     private String content;
 
-    /** 使用的素材ID列表，可为空 */
+    /** 当前状态：0草稿 / 3已驳回，编辑保存后会回到 0 */
+    private Integer status;
+
+    /** 已关联的素材 id，用于回填选择器的选中态 */
     private List<Long> materialIds;
 
     public Long getId() {
@@ -36,20 +34,20 @@ public class ArticleSaveDTO {
         this.id = id;
     }
 
-    public Long getCategoryId() {
-        return categoryId;
-    }
-
-    public void setCategoryId(Long categoryId) {
-        this.categoryId = categoryId;
-    }
-
     public String getTitle() {
         return title;
     }
 
     public void setTitle(String title) {
         this.title = title;
+    }
+
+    public Long getCategoryId() {
+        return categoryId;
+    }
+
+    public void setCategoryId(Long categoryId) {
+        this.categoryId = categoryId;
     }
 
     public String getCoverImage() {
@@ -66,6 +64,14 @@ public class ArticleSaveDTO {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public Integer getStatus() {
+        return status;
+    }
+
+    public void setStatus(Integer status) {
+        this.status = status;
     }
 
     public List<Long> getMaterialIds() {

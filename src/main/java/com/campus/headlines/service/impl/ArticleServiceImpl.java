@@ -1,43 +1,69 @@
 package com.campus.headlines.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.headlines.common.BusinessException;
 import com.campus.headlines.common.Result;
-import com.campus.headlines.dto.ArticleSaveDTO;
+import com.campus.headlines.dto.ArticleDTO;
 import com.campus.headlines.entity.Article;
 import com.campus.headlines.entity.ArticleMaterial;
+import com.campus.headlines.entity.Category;
+import com.campus.headlines.entity.Favorite;
 import com.campus.headlines.entity.Material;
+import com.campus.headlines.entity.User;
 import com.campus.headlines.mapper.ArticleMapper;
 import com.campus.headlines.mapper.ArticleMaterialMapper;
+import com.campus.headlines.mapper.CategoryMapper;
+import com.campus.headlines.mapper.FavoriteMapper;
 import com.campus.headlines.mapper.MaterialMapper;
+import com.campus.headlines.mapper.UserMapper;
 import com.campus.headlines.service.ArticleService;
+import com.campus.headlines.vo.ArticleDetailVO;
+import com.campus.headlines.vo.ArticleEditVO;
+import com.campus.headlines.vo.ArticleListVO;
+import com.campus.headlines.vo.MaterialVO;
+import com.campus.headlines.vo.PageVO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 资讯业务实现。
  *
- * <p>本阶段只做“保存草稿 / 提交审核”两件事，状态只可能是 0 或 1：
- * 学生没有权限直接把 status 写成 2（已通过），审核动作留到管理员模块。</p>
- *
- * <p>素材关联采用「先删后插」：每次保存都按前端提交的完整 materialIds 重建关联，
- * 逻辑简单、天然幂等，不必对比差集。</p>
+ * <p>状态流转全部用「带 where status=旧状态」的条件更新，而不是先查后改：
+ * 两个人同时点“通过”时，只有第一条 update 会影响 1 行，第二条影响 0 行，
+ * 于是第二个请求得到明确提示，不会把已通过的稿件再改一次。</p>
  */
 @Service
 public class ArticleServiceImpl implements ArticleService {
 
     private static final Logger log = LoggerFactory.getLogger(ArticleServiceImpl.class);
 
-    /** 标题最大长度，与表结构 varchar(200) 对齐 */
+    /** 标题最大长度，与 article.title varchar(200) 对齐 */
     private static final int TITLE_MAX = 200;
+
+    /** 列表摘要截断长度 */
+    private static final int SUMMARY_LEN = 90;
+
+    /** 管理员角色值 */
+    private static final int ROLE_ADMIN = 1;
+
+    /** 分页默认与上限 */
+    private static final long DEFAULT_SIZE = 10;
+    private static final long MAX_SIZE = 50;
 
     @Resource
     private ArticleMapper articleMapper;
@@ -48,18 +74,28 @@ public class ArticleServiceImpl implements ArticleService {
     @Resource
     private MaterialMapper materialMapper;
 
+    @Resource
+    private CategoryMapper categoryMapper;
+
+    @Resource
+    private UserMapper userMapper;
+
+    @Resource
+    private FavoriteMapper favoriteMapper;
+
+    // =====================================================================
+    //  投稿
+    // =====================================================================
+
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Long save(ArticleSaveDTO dto, Long userId, int status) {
-
+    public Long saveDraft(ArticleDTO dto, Long userId) {
         if (userId == null) {
             throw new BusinessException(Result.CODE_UNAUTHORIZED, "请先登录");
         }
-        if (status != Article.STATUS_DRAFT && status != Article.STATUS_PENDING) {
-            throw new BusinessException("非法的资讯状态");
+        if (dto == null) {
+            throw new BusinessException("保存参数不能为空");
         }
-
-        // ---------- 1. 参数校验 ----------
         String title = dto.getTitle() == null ? "" : dto.getTitle().trim();
         if (title.isEmpty()) {
             throw new BusinessException("标题不能为空");
@@ -68,17 +104,14 @@ public class ArticleServiceImpl implements ArticleService {
             throw new BusinessException("标题不能超过 " + TITLE_MAX + " 个字符");
         }
         String content = dto.getContent() == null ? "" : dto.getContent();
-        if (status == Article.STATUS_PENDING && content.trim().isEmpty()) {
-            throw new BusinessException("提交审核前请填写正文");
-        }
 
-        // ---------- 2. 新建或编辑 ----------
         Article article;
         if (dto.getId() == null) {
             article = new Article();
             article.setUserId(userId);
             article.setViewCount(0);
             article.setIsTop(0);
+            article.setStatus(Article.STATUS_DRAFT);
         } else {
             article = articleMapper.selectById(dto.getId());
             if (article == null) {
@@ -87,66 +120,298 @@ public class ArticleServiceImpl implements ArticleService {
             if (!userId.equals(article.getUserId())) {
                 throw new BusinessException(Result.CODE_FORBIDDEN, "只能编辑自己的资讯");
             }
-            // 已通过审核的稿子不允许绕过审核直接改
-            if (article.getStatus() != null && article.getStatus() == Article.STATUS_APPROVED) {
-                throw new BusinessException("已通过的资讯不能直接修改，请联系管理员");
+            int status = article.getStatus() == null ? -1 : article.getStatus();
+            if (status == Article.STATUS_PENDING) {
+                throw new BusinessException("审核中的资讯不能修改，请等待管理员处理");
             }
+            if (status == Article.STATUS_APPROVED) {
+                throw new BusinessException("已通过的资讯不能直接修改，如需更正请联系管理员");
+            }
+            // 剩下 0 草稿 / 3 已驳回：都回到草稿状态，改完再提交
+            article.setStatus(Article.STATUS_DRAFT);
+            // 驳回原因保留在库里做历史，重新提交由 audit 覆盖，这里不清空
         }
 
         article.setCategoryId(dto.getCategoryId());
         article.setTitle(title);
         article.setCoverImage(dto.getCoverImage());
         article.setContent(content);
-        article.setStatus(status);
 
-        if (dto.getId() == null) {
+        if (article.getId() == null) {
             articleMapper.insert(article);
         } else {
             articleMapper.updateById(article);
         }
         Long articleId = article.getId();
 
-        // ---------- 3. 重建素材关联 ----------
-        articleMaterialMapper.delete(
-                new LambdaQueryWrapper<ArticleMaterial>().eq(ArticleMaterial::getArticleId, articleId));
-        List<Long> materialIds = distinctIds(dto.getMaterialIds());
-        if (!materialIds.isEmpty()) {
-            // 只允许关联自己的素材，防止拿别人的素材 id 拼内容
-            Long owned = materialMapper.selectCount(
-                    new LambdaQueryWrapper<Material>()
-                            .in(Material::getId, materialIds)
-                            .eq(Material::getUserId, userId));
-            if (owned == null || owned != materialIds.size()) {
-                throw new BusinessException(Result.CODE_FORBIDDEN, "存在无权使用的素材，请刷新后重试");
-            }
-            for (Long materialId : materialIds) {
-                articleMaterialMapper.insert(new ArticleMaterial(articleId, materialId));
-            }
-        }
+        rebuildMaterials(articleId, dto.getMaterialIds(), userId);
 
-        log.info("资讯保存成功: id={}, userId={}, status={}, 素材 {} 个",
-                articleId, userId, status, materialIds.size());
+        log.info("草稿保存成功: articleId={}, userId={}, 素材 {} 个",
+                articleId, userId, dto.getMaterialIds() == null ? 0 : dto.getMaterialIds().size());
         return articleId;
     }
 
     @Override
-    public List<Article> listByAuthor(Long userId) {
+    @Transactional(rollbackFor = Exception.class)
+    public void submitForReview(Long articleId, Long userId) {
         if (userId == null) {
             throw new BusinessException(Result.CODE_UNAUTHORIZED, "请先登录");
         }
-        return articleMapper.selectList(
-                new LambdaQueryWrapper<Article>()
-                        .eq(Article::getUserId, userId)
-                        .orderByDesc(Article::getUpdateTime)
-                        .orderByDesc(Article::getId));
+        Article article = articleMapper.selectById(articleId);
+        if (article == null) {
+            throw new BusinessException(Result.CODE_NOT_FOUND, "资讯不存在");
+        }
+        if (!userId.equals(article.getUserId())) {
+            throw new BusinessException(Result.CODE_FORBIDDEN, "只能提交自己的资讯");
+        }
+        int status = article.getStatus() == null ? -1 : article.getStatus();
+        if (status == Article.STATUS_PENDING) {
+            throw new BusinessException("该资讯已提交审核，请等待管理员处理");
+        }
+        if (status == Article.STATUS_APPROVED) {
+            throw new BusinessException("该资讯已通过审核，无需重复提交");
+        }
+        if (status == Article.STATUS_REJECTED) {
+            throw new BusinessException("该资讯已被驳回，请修改并保存草稿后再提交");
+        }
+        if (status != Article.STATUS_DRAFT) {
+            throw new BusinessException("当前状态不允许提交审核");
+        }
+        String content = article.getContent();
+        if (content == null || content.trim().isEmpty()) {
+            throw new BusinessException("提交审核前请填写正文");
+        }
+
+        // 条件更新：只有仍是草稿才改成待审核，防止并发重复提交
+        int updated = articleMapper.update(null, new LambdaUpdateWrapper<Article>()
+                .eq(Article::getId, articleId)
+                .eq(Article::getUserId, userId)
+                .eq(Article::getStatus, Article.STATUS_DRAFT)
+                .set(Article::getStatus, Article.STATUS_PENDING));
+        if (updated == 0) {
+            throw new BusinessException("资讯状态已变更，请刷新后重试");
+        }
+        log.info("提交审核成功: articleId={}, userId={}", articleId, userId);
+    }
+
+    // =====================================================================
+    //  审核
+    // =====================================================================
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void audit(Long articleId, Integer pass, String rejectReason, Long adminUserId) {
+        if (adminUserId == null) {
+            throw new BusinessException(Result.CODE_UNAUTHORIZED, "请先登录");
+        }
+        User admin = userMapper.selectById(adminUserId);
+        if (admin == null || admin.getRole() == null || admin.getRole() != ROLE_ADMIN) {
+            throw new BusinessException(Result.CODE_FORBIDDEN, "仅管理员可以执行审核操作");
+        }
+        if (pass == null || (pass != 0 && pass != 1)) {
+            throw new BusinessException("审核结果参数不合法");
+        }
+        if (pass == 0 && (rejectReason == null || rejectReason.trim().isEmpty())) {
+            throw new BusinessException("驳回时必须填写驳回原因");
+        }
+
+        int target = pass == 1 ? Article.STATUS_APPROVED : Article.STATUS_REJECTED;
+        LambdaUpdateWrapper<Article> update = new LambdaUpdateWrapper<Article>()
+                .eq(Article::getId, articleId)
+                // 关键：只允许从“待审核”流转，重复审核会更新 0 行
+                .eq(Article::getStatus, Article.STATUS_PENDING)
+                .set(Article::getStatus, target);
+
+        if (pass == 1) {
+            update.set(Article::getPublishTime, LocalDateTime.now())
+                    .set(Article::getRejectReason, null);
+        } else {
+            update.set(Article::getRejectReason, rejectReason.trim())
+                    // 驳回即撤回发布，重新通过时重新计时
+                    .set(Article::getPublishTime, null);
+        }
+
+        int updated = articleMapper.update(null, update);
+        if (updated == 0) {
+            throw new BusinessException("该资讯不在待审核状态，可能已被处理");
+        }
+        log.info("审核完成: articleId={}, pass={}, adminId={}", articleId, pass, adminUserId);
+    }
+
+    // =====================================================================
+    //  查询
+    // =====================================================================
+
+    @Override
+    public PageVO<ArticleListVO> listPublished(Long categoryId, String keyword, long page, long size) {
+        LambdaQueryWrapper<Article> query = new LambdaQueryWrapper<Article>()
+                .eq(Article::getStatus, Article.STATUS_APPROVED);
+
+        // 动态条件一：栏目可选
+        if (categoryId != null) {
+            query.eq(Article::getCategoryId, categoryId);
+        }
+        // 动态条件二：关键词可选，标题或正文命中即可
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            String kw = keyword.trim();
+            query.and(w -> w.like(Article::getTitle, kw).or().like(Article::getContent, kw));
+        }
+        // 置顶优先，再按发布时间倒序；id 兜底保证分页稳定
+        query.orderByDesc(Article::getIsTop)
+                .orderByDesc(Article::getPublishTime)
+                .orderByDesc(Article::getId);
+
+        Page<Article> result = articleMapper.selectPage(buildPage(page, size), query);
+        return buildPageVO(result);
     }
 
     @Override
-    public Article getById(Long id) {
-        return id == null ? null : articleMapper.selectById(id);
+    public PageVO<ArticleListVO> listMyArticles(Long userId, Integer status, long page, long size) {
+        if (userId == null) {
+            throw new BusinessException(Result.CODE_UNAUTHORIZED, "请先登录");
+        }
+        LambdaQueryWrapper<Article> query = new LambdaQueryWrapper<Article>()
+                .eq(Article::getUserId, userId);
+        if (status != null) {
+            query.eq(Article::getStatus, status);
+        }
+        query.orderByDesc(Article::getUpdateTime).orderByDesc(Article::getId);
+
+        Page<Article> result = articleMapper.selectPage(buildPage(page, size), query);
+        return buildPageVO(result);
     }
 
-    /** 去重并去掉 null */
+    @Override
+    public PageVO<ArticleListVO> listPendingAudit(long page, long size) {
+        LambdaQueryWrapper<Article> query = new LambdaQueryWrapper<Article>()
+                .eq(Article::getStatus, Article.STATUS_PENDING)
+                // 先提交的先审
+                .orderByAsc(Article::getUpdateTime)
+                .orderByAsc(Article::getId);
+        Page<Article> result = articleMapper.selectPage(buildPage(page, size), query);
+        return buildPageVO(result);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ArticleDetailVO getDetail(Long articleId, Long currentUserId) {
+        Article article = articleMapper.selectById(articleId);
+        if (article == null || !Integer.valueOf(Article.STATUS_APPROVED).equals(article.getStatus())) {
+            throw new BusinessException(Result.CODE_NOT_FOUND, "资讯不存在或未通过审核");
+        }
+
+        // 浏览量原子 +1，避免“先查后写”在并发下互相覆盖
+        articleMapper.update(null, new LambdaUpdateWrapper<Article>()
+                .eq(Article::getId, articleId)
+                .setSql("view_count = view_count + 1"));
+
+        ArticleDetailVO vo = new ArticleDetailVO();
+        vo.setId(article.getId());
+        vo.setTitle(article.getTitle());
+        vo.setCoverImage(article.getCoverImage());
+        vo.setContent(article.getContent());
+        vo.setCategoryId(article.getCategoryId());
+        vo.setAuthorId(article.getUserId());
+        vo.setPublishTime(article.getPublishTime());
+        vo.setCreateTime(article.getCreateTime());
+        int views = article.getViewCount() == null ? 1 : article.getViewCount() + 1;
+        vo.setViewCount(views);
+
+        if (article.getCategoryId() != null) {
+            Category category = categoryMapper.selectById(article.getCategoryId());
+            vo.setCategoryName(category == null ? null : category.getName());
+        }
+        if (article.getUserId() != null) {
+            User author = userMapper.selectById(article.getUserId());
+            if (author != null) {
+                vo.setAuthorName(displayName(author));
+                vo.setAuthorAvatar(author.getAvatar());
+            }
+        }
+
+        // 内嵌素材
+        List<ArticleMaterial> relations = articleMaterialMapper.selectList(
+                new LambdaQueryWrapper<ArticleMaterial>().eq(ArticleMaterial::getArticleId, articleId));
+        if (!relations.isEmpty()) {
+            List<Long> materialIds = relations.stream()
+                    .map(ArticleMaterial::getMaterialId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            if (!materialIds.isEmpty()) {
+                List<Material> materials = materialMapper.selectBatchIds(materialIds);
+                vo.setMaterials(materials.stream().map(MaterialVO::from).collect(Collectors.toList()));
+            }
+        }
+
+        // 收藏状态（未登录时不查）
+        boolean favorite = false;
+        if (currentUserId != null) {
+            Long count = favoriteMapper.selectCount(new LambdaQueryWrapper<Favorite>()
+                    .eq(Favorite::getUserId, currentUserId)
+                    .eq(Favorite::getArticleId, articleId));
+            favorite = count != null && count > 0;
+        }
+        vo.setFavorite(favorite);
+
+        return vo;
+    }
+
+    @Override
+    public ArticleEditVO getForEdit(Long articleId, Long userId) {
+        Article article = articleMapper.selectById(articleId);
+        if (article == null) {
+            throw new BusinessException(Result.CODE_NOT_FOUND, "资讯不存在");
+        }
+        if (userId == null || !userId.equals(article.getUserId())) {
+            throw new BusinessException(Result.CODE_FORBIDDEN, "只能编辑自己的资讯");
+        }
+        int status = article.getStatus() == null ? -1 : article.getStatus();
+        if (status != Article.STATUS_DRAFT && status != Article.STATUS_REJECTED) {
+            throw new BusinessException("只有草稿或已驳回的资讯可以编辑");
+        }
+
+        ArticleEditVO vo = new ArticleEditVO();
+        vo.setId(article.getId());
+        vo.setTitle(article.getTitle());
+        vo.setCategoryId(article.getCategoryId());
+        vo.setCoverImage(article.getCoverImage());
+        vo.setContent(article.getContent());
+        vo.setStatus(article.getStatus());
+
+        List<ArticleMaterial> relations = articleMaterialMapper.selectList(
+                new LambdaQueryWrapper<ArticleMaterial>().eq(ArticleMaterial::getArticleId, articleId));
+        vo.setMaterialIds(relations.stream()
+                .map(ArticleMaterial::getMaterialId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList()));
+        return vo;
+    }
+
+    // =====================================================================
+    //  内部方法
+    // =====================================================================
+
+    /** 重建资讯与素材的关联：先删后插，逻辑简单且幂等 */
+    private void rebuildMaterials(Long articleId, List<Long> materialIds, Long userId) {
+        articleMaterialMapper.delete(new LambdaQueryWrapper<ArticleMaterial>()
+                .eq(ArticleMaterial::getArticleId, articleId));
+
+        List<Long> ids = distinctIds(materialIds);
+        if (ids.isEmpty()) {
+            return;
+        }
+        // 只允许关联自己的素材，避免拿别人的素材 id 拼内容
+        Long owned = materialMapper.selectCount(new LambdaQueryWrapper<Material>()
+                .in(Material::getId, ids)
+                .eq(Material::getUserId, userId));
+        if (owned == null || owned.intValue() != ids.size()) {
+            throw new BusinessException(Result.CODE_FORBIDDEN, "存在无权使用的素材，请刷新后重试");
+        }
+        for (Long materialId : ids) {
+            articleMaterialMapper.insert(new ArticleMaterial(articleId, materialId));
+        }
+    }
+
     private List<Long> distinctIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return new ArrayList<>();
@@ -159,4 +424,82 @@ public class ArticleServiceImpl implements ArticleService {
         }
         return new ArrayList<>(set);
     }
+
+    private Page<Article> buildPage(long page, long size) {
+        long current = page < 1 ? 1 : page;
+        long pageSize = size < 1 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
+        return new Page<>(current, pageSize);
+    }
+
+    private PageVO<ArticleListVO> buildPageVO(Page<Article> result) {
+        return new PageVO<>(enrich(result.getRecords()), result.getTotal(),
+                result.getCurrent(), result.getSize());
+    }
+
+    /** 批量补齐栏目名与作者名，避免逐条查库（N+1） */
+    private List<ArticleListVO> enrich(List<Article> records) {
+        if (records == null || records.isEmpty()) {
+            return new ArrayList<>();
+        }
+        Set<Long> categoryIds = records.stream()
+                .map(Article::getCategoryId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> userIds = records.stream()
+                .map(Article::getUserId).filter(Objects::nonNull).collect(Collectors.toSet());
+
+        Map<Long, String> categoryNames = new HashMap<>();
+        if (!categoryIds.isEmpty()) {
+            for (Category c : categoryMapper.selectBatchIds(categoryIds)) {
+                categoryNames.put(c.getId(), c.getName());
+            }
+        }
+        Map<Long, String> authorNames = new HashMap<>();
+        if (!userIds.isEmpty()) {
+            for (User u : userMapper.selectBatchIds(userIds)) {
+                authorNames.put(u.getId(), displayName(u));
+            }
+        }
+
+        List<ArticleListVO> list = new ArrayList<>(records.size());
+        for (Article a : records) {
+            ArticleListVO vo = new ArticleListVO();
+            vo.setId(a.getId());
+            vo.setTitle(a.getTitle());
+            vo.setCoverImage(a.getCoverImage());
+            vo.setCategoryId(a.getCategoryId());
+            vo.setCategoryName(categoryNames.get(a.getCategoryId()));
+            vo.setAuthorId(a.getUserId());
+            vo.setAuthorName(authorNames.get(a.getUserId()));
+            vo.setPublishTime(a.getPublishTime());
+            vo.setUpdateTime(a.getUpdateTime());
+            vo.setViewCount(a.getViewCount());
+            vo.setIsTop(a.getIsTop());
+            vo.setStatus(a.getStatus());
+            vo.setRejectReason(a.getRejectReason());
+            vo.setSummary(summarize(a.getContent()));
+            list.add(vo);
+        }
+        return list;
+    }
+
+    /** 昵称优先，没有就用账号 */
+    private String displayName(User user) {
+        if (user == null) {
+            return null;
+        }
+        return (user.getNickname() != null && !user.getNickname().isEmpty())
+                ? user.getNickname() : user.getUsername();
+    }
+
+    /** 去 HTML 标签后截断，作为列表摘要 */
+    private String summarize(String html) {
+        if (html == null || html.isEmpty()) {
+            return "";
+        }
+        String text = html.replaceAll("<[^>]+>", " ")
+                .replace("&nbsp;", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        return text.length() > SUMMARY_LEN ? text.substring(0, SUMMARY_LEN) + "…" : text;
+    }
+
 }

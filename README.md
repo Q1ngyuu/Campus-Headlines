@@ -1,4 +1,4 @@
-﻿# 校园头条（Campus Headlines）
+# 校园头条（Campus Headlines）
 
 基于 **SSM**（Spring 5 + SpringMVC + MyBatis-Plus）的校园新闻资讯站。当前仓库为**初始化骨架**：Maven Web 工程结构、依赖、Spring 双容器配置、日志与数据库配置模板已就绪，业务代码待后续步骤填充。
 
@@ -404,6 +404,75 @@ upload.video-ext=mp4,webm,ogg
 `ArticleServiceImpl` 会把 `materialIds` **先删后插**写入 `article_material`；
 封面选中的素材也会自动计入关联表，避免“封面图不在素材列表里”的孤儿引用。
 
+### 资讯发布与审核（已实现）
+
+**状态机（整个项目的核心，只允许这四条边）**
+
+```
+  [0 草稿] ──submitForReview──> [1 待审核] ──audit(pass=1)──> [2 已通过]（写 publish_time，前台可见）
+                                      └──── audit(pass=0)──> [3 已驳回]（写 reject_reason）
+  [3 已驳回] ──saveDraft（编辑保存）──> [0 草稿] ──submitForReview──> [1 待审核]
+```
+
+| 状态 | 谁可以看到 | 谁能改 |
+| --- | --- | --- |
+| 0 草稿 | 仅作者 | 作者（编辑） |
+| 1 待审核 | 仅作者 + 管理员 | 都不能改（等审核） |
+| 2 已通过 | 所有人 | 都不能直接改 |
+| 3 已驳回 | 仅作者 | 作者（编辑后回到草稿） |
+
+**接口**
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/article/draft` | 保存草稿（新建或更新），`@Transactional` 同时写 article 与 article_material |
+| POST | `/article/submit/{id}` | 提交审核，0 → 1 |
+| POST | `/admin/article/audit` | 审核，body `{articleId, pass, rejectReason}` |
+| GET | `/article/list` | 公开列表，参数 `categoryId` / `keyword` / `page` / `size` |
+| GET | `/article/detail/{id}` | 详情页（服务端渲染），浏览量 +1 |
+| GET | `/article/my`、`/article/my/list` | 我的文章（页面 / 数据） |
+| GET | `/admin/article/pending` | 待审核列表 |
+
+**页面**
+
+| 路径 | JSP |
+| --- | --- |
+| `/` | `views/index.jsp` 首页卡片列表 + 栏目筛选 + 搜索 |
+| `/article/detail/{id}` | `views/article/detail.jsp` 正文 + 内嵌素材 + 收藏 |
+| `/article/publish`（可带 `?id=`） | `views/article/publish.jsp` 新建/编辑，封面与内嵌素材选择 |
+| `/article/my` | `views/article/my.jsp` 状态标签 + 驳回原因 + 编辑/提交 |
+| `/admin/article/page` | `views/admin/audit.jsp` 通过 / 驳回 |
+
+**三个关键实现点**
+
+1. **防重复审核靠条件更新，不是先查后改**
+
+   ```sql
+   UPDATE article SET status = 2, publish_time = NOW()
+    WHERE id = ? AND status = 1        -- 只在“待审核”时生效
+   ```
+
+   两个人同时点“通过”时，第二次影响 0 行，于是拿到「该资讯不在待审核状态，可能已被处理」。
+   如果写成“先 select 判断 status==1 再 update”，并发下会重复改状态、重复写发布时间。
+
+2. **学生无法把自己写成“已通过”**
+
+   `saveDraft` 只接受 `id == null` 或状态为 0/3 的稿件，且强制 `status = 0`；
+   `submitForReview` 只把 0 改成 1；只有 `audit`（校验调用者 role=1）能写 2。
+   请求体里根本没有 `status` 字段，前端传什么都没用。
+
+3. **浏览量原子自增**
+
+   ```java
+   update ... setSql("view_count = view_count + 1")
+   ```
+
+   而不是“查出来 +1 再写回”，避免并发下互相覆盖、计数丢失。
+
+**权限是双保险**：`AdminInterceptor` 拦 `/admin/**` 做粗筛（非管理员 403），
+`audit()` 里再查一次数据库的 `role`——Session 里的角色是登录时的快照，
+用户被降权后 Session 不会立刻失效，服务层才是最后防线。
+
 ### 两个必踩的坑（已处理）
 
 1. **`@Resource` 在 JDK 11+ 编译不过**：`javax.annotation` 包已从 JDK 移除，必须显式引入
@@ -455,8 +524,8 @@ upload.video-ext=mp4,webm,ogg
 - [x] 登录/注册（Session + BCrypt），启用 `LoginInterceptor`
 - [x] 素材上传（图片/视频，落 `material` 表 + `/upload/**` 回显）
 - [x] 资讯发布（草稿/提交审核，封面与内嵌素材关联 article_material）
-- [ ] 管理员审核（待审核 → 通过/驳回）
-- [ ] 首页列表分页 + 详情页 + 浏览量自增
-- [ ] 栏目筛选、收藏/取消收藏
-- [ ] JSP 视图与静态资源样式
+- [x] 管理员审核（待审核 → 通过/驳回，`@Transactional` + 条件更新）
+- [x] 首页列表分页 + 详情页 + 浏览量原子自增
+- [x] 栏目筛选、收藏/取消收藏
+- [x] JSP 视图与静态资源样式（首页/详情/发布/我的/审核）
 - [x] 统一返回体 `Result` + 全局异常处理 `@RestControllerAdvice`
