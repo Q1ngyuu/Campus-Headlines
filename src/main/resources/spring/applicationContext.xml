@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Spring 根容器：Service / Mapper / 数据源 / 事务
+  由 web.xml 中的 ContextLoaderListener 加载
+-->
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xsi:schemaLocation="
+           http://www.springframework.org/schema/beans
+           http://www.springframework.org/schema/beans/spring-beans.xsd
+           http://www.springframework.org/schema/context
+           http://www.springframework.org/schema/context/spring-context.xsd
+           http://www.springframework.org/schema/tx
+           http://www.springframework.org/schema/tx/spring-tx.xsd">
+
+    <!-- ============================================================
+         1. 读取 jdbc.properties
+         注意：MapperScannerConfigurer 是 BeanDefinitionRegistryPostProcessor，
+         若在其配置里用 ${} 会拿不到占位符（执行更早），所以下面扫描器全部写死包名。
+         ============================================================ -->
+    <context:property-placeholder location="classpath:properties/jdbc.properties"
+                                  file-encoding="UTF-8"
+                                  ignore-unresolvable="true"/>
+
+    <!-- ============================================================
+         2. 只扫描 Service 层（Controller 在 spring-mvc.xml 里扫描）
+         ============================================================ -->
+    <context:component-scan base-package="com.campus.headlines.service"/>
+
+    <!-- ============================================================
+         3. 数据源：Druid
+         连接信息全部来自 jdbc.properties，改配置不用动 XML
+         ============================================================ -->
+    <bean id="dataSource" class="com.alibaba.druid.pool.DruidDataSource"
+          init-method="init" destroy-method="close">
+
+        <property name="driverClassName" value="${jdbc.driver}"/>
+        <property name="url" value="${jdbc.url}"/>
+        <property name="username" value="${jdbc.username}"/>
+        <property name="password" value="${jdbc.password}"/>
+
+        <!-- 连接池容量 -->
+        <property name="initialSize" value="${druid.initialSize}"/>
+        <property name="minIdle" value="${druid.minIdle}"/>
+        <property name="maxActive" value="${druid.maxActive}"/>
+        <property name="maxWait" value="${druid.maxWait}"/>
+
+        <!-- 连接有效性检测 -->
+        <property name="validationQuery" value="SELECT 1"/>
+        <property name="testWhileIdle" value="true"/>
+        <property name="testOnBorrow" value="false"/>
+        <property name="testOnReturn" value="false"/>
+        <property name="timeBetweenEvictionRunsMillis" value="60000"/>
+        <property name="minEvictableIdleTimeMillis" value="300000"/>
+
+        <!-- 监控与防泄漏（filters=stat 开启 SQL 统计；去掉 wall 以免 SQL 被过度拦截） -->
+        <property name="filters" value="${druid.filters}"/>
+    </bean>
+
+    <!--
+      —— C3P0 备选方案：如果用 C3P0，注释掉上面的 Druid，换成下面这段，
+         并在 pom.xml 里把 druid 依赖换成 com.mchange:c3p0:0.9.5.5
+
+      <bean id="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource"
+            destroy-method="close">
+          <property name="driverClass" value="${jdbc.driver}"/>
+          <property name="jdbcUrl" value="${jdbc.url}"/>
+          <property name="user" value="${jdbc.username}"/>
+          <property name="password" value="${jdbc.password}"/>
+          <property name="minPoolSize" value="5"/>
+          <property name="maxPoolSize" value="20"/>
+          <property name="initialPoolSize" value="5"/>
+          <property name="maxIdleTime" value="60"/>
+          <property name="checkoutTimeout" value="3000"/>
+      </bean>
+    -->
+
+    <!-- ============================================================
+         4. MyBatis-Plus 的 SqlSessionFactory
+         关键点：用 MybatisSqlSessionFactoryBean（不是原生 SqlSessionFactoryBean），
+         否则 MyBatis-Plus 的 BaseMapper / 分页插件不生效。
+         ============================================================ -->
+    <bean id="sqlSessionFactory" class="com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean">
+        <property name="dataSource" ref="dataSource"/>
+        <!-- 实体别名包：XML 里可直接写 resultType="News" -->
+        <property name="typeAliasesPackage" value="com.campus.headlines.entity"/>
+        <!-- Mapper XML 位置：用 classpath*: 扫描，目录为空时也不会启动失败 -->
+        <property name="mapperLocations" value="classpath*:mapper/**/*.xml"/>
+        <!-- 全局配置 -->
+        <property name="globalConfig" ref="globalConfig"/>
+        <!-- 插件链：分页插件必须在这里注册 -->
+        <property name="plugins">
+            <array>
+                <ref bean="mybatisPlusInterceptor"/>
+            </array>
+        </property>
+    </bean>
+
+    <!-- MyBatis-Plus 全局配置：主键自增、下划线转驼峰、关闭启动 banner -->
+    <bean id="globalConfig" class="com.baomidou.mybatisplus.core.config.GlobalConfig">
+        <property name="banner" value="false"/>
+        <property name="dbConfig">
+            <bean class="com.baomidou.mybatisplus.core.config.GlobalConfig$DbConfig">
+                <property name="idType" value="AUTO"/>
+                <property name="tableUnderline" value="true"/>
+                <property name="logicDeleteValue" value="1"/>
+                <property name="logicNotDeleteValue" value="0"/>
+            </bean>
+        </property>
+    </bean>
+
+    <!-- 分页拦截器：DbType 必须是 MYSQL，否则生成的 limit 语法不对 -->
+    <bean id="mybatisPlusInterceptor"
+          class="com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor">
+        <property name="interceptors">
+            <list>
+                <bean class="com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor">
+                    <property name="dbType" value="MYSQL"/>
+                    <!-- 单页最大条数，防止前端传 size=999999 拖垮数据库 -->
+                    <property name="maxLimit" value="500"/>
+                </bean>
+            </list>
+        </property>
+    </bean>
+
+    <!-- ============================================================
+         5. Mapper 接口扫描：只写接口，不用写实现类
+         sqlSessionFactoryBeanName 必须与上面的 bean id 一致
+         ============================================================ -->
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="com.campus.headlines.mapper"/>
+        <property name="sqlSessionFactoryBeanName" value="sqlSessionFactory"/>
+        <!-- 不要设置 markerInterface：一旦限定为 BaseMapper，
+             不继承 BaseMapper 的纯 MyBatis 接口会被静默跳过 -->
+    </bean>
+
+    <!-- ============================================================
+         6. 事务管理器 + @Transactional 注解驱动
+         proxy-target-class=true：即使 Service 没写接口，CGLIB 代理也能生效
+         ============================================================ -->
+    <bean id="transactionManager"
+          class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+
+    <tx:annotation-driven transaction-manager="transactionManager"
+                          proxy-target-class="true"/>
+
+</beans>

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpringMVC 容器：Controller / 视图解析 / 静态资源 / 文件上传 / 拦截器
+  由 web.xml 中的 DispatcherServlet 加载
+-->
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:mvc="http://www.springframework.org/schema/mvc"
+       xsi:schemaLocation="
+           http://www.springframework.org/schema/beans
+           http://www.springframework.org/schema/beans/spring-beans.xsd
+           http://www.springframework.org/schema/context
+           http://www.springframework.org/schema/context/spring-context.xsd
+           http://www.springframework.org/schema/mvc
+           http://www.springframework.org/schema/mvc/spring-mvc.xsd">
+
+    <!-- ============================================================
+         1. 只扫描 Controller 层
+         ============================================================ -->
+    <context:component-scan base-package="com.campus.headlines.controller"/>
+
+    <!-- ============================================================
+         2. 注解驱动
+         - 处理器映射/适配器、@ResponseBody 的 JSON 转换器由框架自动注册
+         - 显式指定 UTF-8 的 StringHttpMessageConverter：
+           Spring 默认用 ISO-8859-1 输出 String，会导致中文乱码
+         ============================================================ -->
+    <mvc:annotation-driven>
+        <mvc:message-converters register-defaults="true">
+            <bean class="org.springframework.http.converter.StringHttpMessageConverter">
+                <constructor-arg value="UTF-8"/>
+            </bean>
+        </mvc:message-converters>
+    </mvc:annotation-driven>
+
+    <!-- ============================================================
+         3. 视图解析器：Controller 返回 "news/list" -> /WEB-INF/views/news/list.jsp
+         ============================================================ -->
+    <bean class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+        <property name="prefix" value="/WEB-INF/views/"/>
+        <property name="suffix" value=".jsp"/>
+        <!-- 让 JSP 页面可以用 ${...} 正常取值 -->
+        <property name="viewClass"
+                  value="org.springframework.web.servlet.view.JstlView"/>
+    </bean>
+
+    <!-- ============================================================
+         4. 静态资源映射
+         DispatcherServlet 映射了 "/"，会接管所有请求，
+         所以 /static/** 必须显式交给容器的默认 Servlet 处理，
+         否则 CSS/JS/图片会 404
+         ============================================================ -->
+    <mvc:resources mapping="/static/**" location="/static/"/>
+    <!-- 上传文件回显目录（后面做图片上传时会用到） -->
+    <mvc:resources mapping="/upload/**" location="/upload/"/>
+
+    <!-- 兜底：未匹配到任何 Controller 的请求交回 Tomcat 默认 Servlet -->
+    <mvc:default-servlet-handler/>
+
+    <!-- ============================================================
+         5. 文件上传解析器
+         bean id 必须是 multipartResolver，否则 DispatcherServlet 认不出来
+         - 单文件 10MB = 10485760
+         - 单次请求总上限 50MB = 52428800
+         ============================================================ -->
+    <bean id="multipartResolver"
+          class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
+        <property name="defaultEncoding" value="UTF-8"/>
+        <property name="maxUploadSize" value="52428800"/>
+        <property name="maxUploadSizePerFile" value="10485760"/>
+        <!-- 小于该阈值的文件只放内存，超过才写临时文件 -->
+        <property name="maxInMemorySize" value="4096"/>
+        <!-- 延迟解析：在 Controller 里访问 getFile 时才解析，异常更好处理 -->
+        <property name="resolveLazily" value="true"/>
+    </bean>
+
+    <!--
+      —— 备选：Servlet 3.0+ 原生上传（不依赖 commons-fileupload，但单文件大小要在
+         web.xml 的 <multipart-config> 里限制，无法只靠 XML 精确控制单文件大小）
+      <bean id="multipartResolver"
+            class="org.springframework.web.multipart.support.StandardServletMultipartResolver"/>
+    -->
+
+    <!-- ============================================================
+         6. 拦截器
+         登录拦截器类已创建（com.campus.headlines.interceptor.LoginInterceptor），
+         但注册先注释掉：等登录、Session 存 user 的步骤做完后，取消注释即可生效。
+
+         取消注释时同时注意：
+         - 排除登录页、注册页、静态资源
+         - 拦截器类改成 <ref bean="loginInterceptor"/> 时，
+           需要把 interceptor 包也纳入 component-scan 或手动声明该 bean
+         ============================================================ -->
+    <mvc:interceptors>
+        <!--
+        <mvc:interceptor>
+            <mvc:mapping path="/**"/>
+            <mvc:exclude-mapping path="/login"/>
+            <mvc:exclude-mapping path="/register"/>
+            <mvc:exclude-mapping path="/static/**"/>
+            <mvc:exclude-mapping path="/upload/**"/>
+            <bean class="com.campus.headlines.interceptor.LoginInterceptor"/>
+        </mvc:interceptor>
+        -->
+    </mvc:interceptors>
+
+</beans>

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Log4j2 配置
+  - 控制台输出：开发时看 SQL 和异常
+  - 滚动文件：按天 + 按大小切分，保留 30 天
+-->
+<Configuration status="WARN" monitorInterval="60">
+
+    <Properties>
+        <Property name="LOG_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n</Property>
+        <Property name="LOG_DIR">logs</Property>
+    </Properties>
+
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="${LOG_PATTERN}" charset="UTF-8"/>
+        </Console>
+
+        <RollingFile name="RollingFile"
+                     fileName="${LOG_DIR}/campus-headlines.log"
+                     filePattern="${LOG_DIR}/campus-headlines-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${LOG_PATTERN}" charset="UTF-8"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="20 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="30"/>
+        </RollingFile>
+    </Appenders>
+
+    <Loggers>
+        <!-- 项目自身的包：DEBUG，方便看 SQL 与请求参数 -->
+        <Logger name="com.campus.headlines" level="debug" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="RollingFile"/>
+        </Logger>
+
+        <!-- Mapper 接口所在的命名空间打 DEBUG，可打印执行的 SQL 与结果行数 -->
+        <Logger name="com.campus.headlines.mapper" level="debug" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="RollingFile"/>
+        </Logger>
+
+        <!-- 第三方框架保持相对安静 -->
+        <Logger name="org.springframework" level="info"/>
+        <Logger name="org.mybatis" level="info"/>
+        <Logger name="com.baomidou" level="info"/>
+        <Logger name="com.alibaba.druid" level="info"/>
+
+        <Root level="info">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="RollingFile"/>
+        </Root>
+    </Loggers>
+
+</Configuration>
