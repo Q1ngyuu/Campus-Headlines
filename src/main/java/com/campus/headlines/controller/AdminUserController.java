@@ -86,6 +86,24 @@ public class AdminUserController {
         return Result.success("密码已重置", null);
     }
 
+
+    /**
+     * 修改角色：0-学生，1-管理员。
+     *
+     * <pre>
+     * POST /admin/user/role  {"userId": 13, "role": 1}
+     * </pre>
+     */
+    @PostMapping("/role")
+    @ResponseBody
+    public Result<Void> updateRole(@RequestBody Map<String, Object> body, HttpSession session) {
+        Long adminUserId = SessionUtil.requireUserId(session);
+        Long userId = toLong(body.get("userId"));
+        Integer role = toInt(body.get("role"));
+        userService.updateRole(userId, role, adminUserId);
+        return Result.success(Integer.valueOf(1).equals(role) ? "已设为管理员" : "已设为学生", null);
+    }
+
     private Long toLong(Object value) {
         if (value == null) {
             return null;

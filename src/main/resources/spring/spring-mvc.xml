@@ -122,6 +122,9 @@
             <mvc:mapping path="/article/my"/>
             <mvc:mapping path="/article/my/**"/>
             <mvc:mapping path="/material/**"/>
+            <mvc:mapping path="/profile"/>
+            <mvc:mapping path="/user/profile"/>
+            <mvc:mapping path="/user/password"/>
             <mvc:mapping path="/favorite"/>
             <mvc:mapping path="/favorite/**"/>
             <mvc:mapping path="/admin/**"/>

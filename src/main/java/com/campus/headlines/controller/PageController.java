@@ -55,4 +55,10 @@ public class PageController {
         model.addAttribute("loginUser", SessionUtil.getLoginUser(session));
         return "favorite/list";
     }
+    /** 个人中心（资料 + 改密码） */
+    @GetMapping("/profile")
+    public String profilePage(Model model, HttpSession session) {
+        model.addAttribute("loginUser", SessionUtil.getLoginUser(session));
+        return "user/profile";
+    }
 }

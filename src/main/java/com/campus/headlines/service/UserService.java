@@ -68,4 +68,30 @@ public interface UserService {
      * <p>管理员设置新密码后由服务端 BCrypt 加密，数据库里不会出现明文。</p>
      */
     void resetPassword(Long userId, String newPassword, Long adminUserId);
+
+    /**
+     * 修改角色（管理员）。
+     *
+     * <p>两条保护：不能改自己的角色；不能把最后一个管理员降级——
+     * 否则会把自己或系统锁死在“没有管理员”的状态。</p>
+     *
+     * @param role 0-学生，1-管理员
+     */
+    void updateRole(Long userId, Integer role, Long adminUserId);
+
+    // =====================================================================
+    //  用户自助：资料与密码
+    // =====================================================================
+
+    /**
+     * 修改自己的资料（昵称、头像）。
+     *
+     * @return 更新后的用户信息（用于刷新 Session 里的副本）
+     */
+    UserVO updateProfile(Long userId, String nickname, String avatar);
+
+    /**
+     * 修改自己的密码：先校验原密码，再写新密码。
+     */
+    void changePassword(Long userId, String oldPassword, String newPassword);
 }

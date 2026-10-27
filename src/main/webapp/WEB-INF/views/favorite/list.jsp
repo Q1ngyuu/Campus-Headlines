@@ -18,6 +18,7 @@
     <a href="${ctx}/article/publish">发布资讯</a>
     <a href="${ctx}/article/my">我的文章</a>
     <a href="${ctx}/material">素材管理</a>
+    <a href="${ctx}/profile">个人中心</a>
     <span class="spacer"></span>
     <span class="hint" style="margin:0">${loginUser.nickname}</span>
 </div>

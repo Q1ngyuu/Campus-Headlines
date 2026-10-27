@@ -88,6 +88,11 @@
                     .prop('disabled', isSelf && enabled)
                     .on('click', function () { setStatus(u.id, enabled ? 0 : 1, this); }));
 
+                $wrap.append($('<button class="btn btn-sm"></button>')
+                    .text(isAdmin ? '设为学生' : '设为管理员')
+                    .prop('disabled', isSelf)
+                    .on('click', function () { setRole(u.id, isAdmin ? 0 : 1, this); }));
+
                 $wrap.append($('<button class="btn btn-sm">重置密码</button>')
                     .on('click', function () { resetPassword(u.id, u.username); }));
 
@@ -155,6 +160,24 @@
                 contentType: 'application/json;charset=UTF-8',
                 dataType: 'json',
                 data: JSON.stringify({ userId: userId, status: status }),
+                success: function (res) {
+                    if (res.code === 200) { toast(res.msg, 'ok'); load(state.page); }
+                    else { toast(res.msg || '操作失败', 'error'); $btn.prop('disabled', false); }
+                },
+                error: function (xhr) {
+                    toast((xhr.responseJSON && xhr.responseJSON.msg) || '操作失败', 'error');
+                    $btn.prop('disabled', false);
+                }
+            });
+        }
+        function setRole(userId, role, btn) {
+            var $btn = $(btn).prop('disabled', true);
+            $.ajax({
+                url: ctx + '/admin/user/role',
+                type: 'POST',
+                contentType: 'application/json;charset=UTF-8',
+                dataType: 'json',
+                data: JSON.stringify({ userId: userId, role: role }),
                 success: function (res) {
                     if (res.code === 200) { toast(res.msg, 'ok'); load(state.page); }
                     else { toast(res.msg || '操作失败', 'error'); $btn.prop('disabled', false); }

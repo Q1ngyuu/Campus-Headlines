@@ -225,4 +225,99 @@ public class UserServiceImpl implements UserService {
         String t = s.trim();
         return t.isEmpty() ? null : t;
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateRole(Long userId, Integer role, Long adminUserId) {
+        adminGuard.require(adminUserId, "修改用户角色");
+        if (userId == null) {
+            throw new BusinessException("用户ID不能为空");
+        }
+        if (role == null || (role != 0 && role != 1)) {
+            throw new BusinessException("角色参数不合法");
+        }
+        if (userId.equals(adminUserId)) {
+            throw new BusinessException("不能修改自己的角色");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(Result.CODE_NOT_FOUND, "用户不存在");
+        }
+        // 降级最后一个管理员会让系统再也没人能进后台
+        if (role == 0 && user.getRole() != null && user.getRole() == 1) {
+            Long adminCount = userMapper.selectCount(
+                    new LambdaQueryWrapper<User>().eq(User::getRole, 1));
+            if (adminCount != null && adminCount <= 1) {
+                throw new BusinessException("系统至少需要保留一个管理员");
+            }
+        }
+        User update = new User();
+        update.setId(userId);
+        update.setRole(role);
+        userMapper.updateById(update);
+        log.info("角色变更: userId={}, username={}, role={}, adminId={}",
+                userId, user.getUsername(), role, adminUserId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public UserVO updateProfile(Long userId, String nickname, String avatar) {
+        if (userId == null) {
+            throw new BusinessException(Result.CODE_UNAUTHORIZED, "请先登录");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(Result.CODE_NOT_FOUND, "用户不存在");
+        }
+        String name = trimToNull(nickname);
+        if (name == null) {
+            throw new BusinessException("昵称不能为空");
+        }
+        if (name.length() > 50) {
+            throw new BusinessException("昵称不能超过 50 个字符");
+        }
+        String avatarPath = trimToNull(avatar);
+        if (avatarPath != null && avatarPath.length() > 500) {
+            throw new BusinessException("头像路径过长");
+        }
+
+        User update = new User();
+        update.setId(userId);
+        update.setNickname(name);
+        update.setAvatar(avatarPath);
+        userMapper.updateById(update);
+
+        log.info("资料已更新: userId={}, nickname={}", userId, name);
+        return UserVO.from(userMapper.selectById(userId));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void changePassword(Long userId, String oldPassword, String newPassword) {
+        if (userId == null) {
+            throw new BusinessException(Result.CODE_UNAUTHORIZED, "请先登录");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(Result.CODE_NOT_FOUND, "用户不存在");
+        }
+        if (oldPassword == null || oldPassword.isEmpty()) {
+            throw new BusinessException("请输入原密码");
+        }
+        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+            throw new BusinessException("原密码不正确");
+        }
+        if (newPassword == null || newPassword.length() < PASSWORD_MIN || newPassword.length() > PASSWORD_MAX) {
+            throw new BusinessException("新密码长度需在 " + PASSWORD_MIN + "-" + PASSWORD_MAX + " 位之间");
+        }
+        if (newPassword.equals(oldPassword)) {
+            throw new BusinessException("新密码不能与原密码相同");
+        }
+
+        User update = new User();
+        update.setId(userId);
+        update.setPassword(passwordEncoder.encode(newPassword));
+        userMapper.updateById(update);
+        log.info("用户修改密码: userId={}, username={}", userId, user.getUsername());
+    }
 }
