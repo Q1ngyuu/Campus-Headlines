@@ -214,7 +214,27 @@
 
 .audit-table th { color: #6c7c90; font-weight: 600; background: #fafcff; }
 
-.audit-table td .ops { display: flex; gap: 8px; }
+/* 后台列表：固定列宽，操作按钮永不换行 / 压缩 */
+.audit-table { table-layout: fixed; }
+.audit-table td { overflow-wrap: anywhere; }
+
+.audit-table td .ops {
+    display: flex;
+    gap: 6px;
+    flex-wrap: nowrap;
+    align-items: center;
+}
+
+.audit-table td .ops > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.audit-table .btn-sm {
+    height: 28px;
+    padding: 0 9px;
+    font-size: 12px;
+}
 
 .reason-input {
     width: 100%;

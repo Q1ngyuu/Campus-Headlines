@@ -67,6 +67,8 @@ a:hover { text-decoration: underline; }
     align-items: center;
     justify-content: center;
     gap: 6px;
+    white-space: nowrap;      /* 中文按钮在窄容器里会被逐字换行，必须禁止 */
+    flex: 0 0 auto;
     height: 36px;
     padding: 0 16px;
     border: 1px solid #dfe6ee;

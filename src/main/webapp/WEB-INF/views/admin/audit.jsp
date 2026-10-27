@@ -67,9 +67,9 @@
             if (!list.length) { return $('<div class="empty">暂无待审核资讯</div>'); }
 
             var $table = $('<table class="audit-table"></table>').append(
-                '<thead><tr><th style="width:60px">ID</th><th>标题</th>' +
-                '<th style="width:100px">作者</th><th style="width:100px">栏目</th>' +
-                '<th style="width:150px">提交时间</th><th style="width:260px">操作</th></tr></thead>'
+                '<thead><tr><th style="width:45px">ID</th><th>标题</th>' +
+                '<th style="width:75px">作者</th><th style="width:85px">栏目</th>' +
+                '<th style="width:155px">提交时间</th><th style="width:210px">操作</th></tr></thead>'
             );
             var $tbody = $('<tbody></tbody>');
 
@@ -119,14 +119,14 @@
             if (!list.length) { return $('<div class="empty">没有符合条件的文章</div>'); }
 
             var statusCol = showStatus
-                ? '<th style="width:80px">状态</th>'
+                ? '<th style="width:75px">状态</th>'
                 : '<th style="width:70px">置顶</th>';
 
             var $table = $('<table class="audit-table"></table>').append(
-                '<thead><tr><th style="width:55px">ID</th><th>标题</th>' +
-                '<th style="width:95px">作者</th><th style="width:150px">更新时间</th>' +
-                '<th style="width:65px">浏览</th>' + statusCol +
-                '<th style="width:220px">操作</th></tr></thead>'
+                '<thead><tr><th style="width:45px">ID</th><th>标题</th>' +
+                '<th style="width:75px">作者</th><th style="width:155px">更新时间</th>' +
+                '<th style="width:55px">浏览</th>' + statusCol +
+                '<th style="width:245px">操作</th></tr></thead>'
             );
             var $tbody = $('<tbody></tbody>');
 
