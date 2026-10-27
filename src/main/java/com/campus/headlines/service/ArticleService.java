@@ -116,4 +116,41 @@ public interface ArticleService {
      * 编辑回填：取自己的草稿/被驳回稿件。
      */
     ArticleEditVO getForEdit(Long articleId, Long userId);
+
+    // =====================================================================
+    //  管理员：文章管理（查看全部 / 修改 / 删除）
+    // =====================================================================
+
+    /**
+     * 管理员文章列表：可按状态筛选，status 为 null 表示全部。
+     */
+    PageVO<ArticleListVO> listForAdmin(Integer status, long page, long size);
+
+    /**
+     * 管理员编辑回填：任意状态的文章都能取到。
+     *
+     * @param adminUserId 调用者，必须 role=1
+     */
+    ArticleEditVO getForAdminEdit(Long articleId, Long adminUserId);
+
+    /**
+     * 管理员修改文章内容（标题 / 栏目 / 封面 / 正文）。
+     *
+     * <p>只改内容，不改状态与发布时间：审核状态仍由 audit 控制，
+     * 避免“编辑一下就把未审核的稿子变成已发布”。素材关联保持原样不动。</p>
+     */
+    void updateByAdmin(ArticleDTO dto, Long adminUserId);
+
+    /**
+     * 管理员删除文章（物理删除）。
+     *
+     * <p>article_material 与 favorite 上的外键是 ON DELETE CASCADE，
+     * 删文章会自动清理关联表与收藏记录；素材文件本身属于作者，不跟着删。</p>
+     */
+    void deleteByAdmin(Long articleId, Long adminUserId);
+
+    /**
+     * 取该文章作者的全部素材（管理员换封面时用）。
+     */
+    java.util.List<com.campus.headlines.vo.MaterialVO> listAuthorMaterials(Long articleId, Long adminUserId);
 }

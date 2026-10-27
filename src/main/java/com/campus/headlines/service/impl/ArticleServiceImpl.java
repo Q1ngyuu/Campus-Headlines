@@ -480,6 +480,121 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     // =====================================================================
+    //  管理员：文章管理
+    // =====================================================================
+
+    @Override
+    public PageVO<ArticleListVO> listForAdmin(Integer status, long page, long size) {
+        LambdaQueryWrapper<Article> query = new LambdaQueryWrapper<>();
+        if (status != null) {
+            query.eq(Article::getStatus, status);
+        }
+        // 管理员看的是“最近被改动过的”，所以按 update_time 倒序
+        query.orderByDesc(Article::getUpdateTime).orderByDesc(Article::getId);
+        return buildPageVO(articleMapper.selectPage(buildPage(page, size), query));
+    }
+
+    @Override
+    public ArticleEditVO getForAdminEdit(Long articleId, Long adminUserId) {
+        requireAdmin(adminUserId, "仅管理员可以编辑他人文章");
+        Article article = articleMapper.selectById(articleId);
+        if (article == null) {
+            throw new BusinessException(Result.CODE_NOT_FOUND, "资讯不存在");
+        }
+        return toEditVO(article);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateByAdmin(ArticleDTO dto, Long adminUserId) {
+        requireAdmin(adminUserId, "仅管理员可以修改他人文章");
+        if (dto == null || dto.getId() == null) {
+            throw new BusinessException("缺少文章ID");
+        }
+        String title = dto.getTitle() == null ? "" : dto.getTitle().trim();
+        if (title.isEmpty()) {
+            throw new BusinessException("标题不能为空");
+        }
+        if (title.length() > TITLE_MAX) {
+            throw new BusinessException("标题不能超过 " + TITLE_MAX + " 个字符");
+        }
+        Article article = articleMapper.selectById(dto.getId());
+        if (article == null) {
+            throw new BusinessException(Result.CODE_NOT_FOUND, "资讯不存在");
+        }
+
+        // 只改内容字段，status / publish_time / 素材关联全部保持原样
+        Article update = new Article();
+        update.setId(article.getId());
+        update.setTitle(title);
+        update.setCategoryId(dto.getCategoryId());
+        update.setCoverImage(dto.getCoverImage());
+        update.setContent(dto.getContent() == null ? "" : dto.getContent());
+        articleMapper.updateById(update);
+
+        log.info("管理员修改文章: articleId={}, adminId={}", article.getId(), adminUserId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteByAdmin(Long articleId, Long adminUserId) {
+        requireAdmin(adminUserId, "仅管理员可以删除文章");
+        Article article = articleMapper.selectById(articleId);
+        if (article == null) {
+            throw new BusinessException(Result.CODE_NOT_FOUND, "资讯不存在");
+        }
+        // 外键 ON DELETE CASCADE 会同时清掉 article_material 与 favorite
+        articleMapper.deleteById(articleId);
+        log.info("管理员删除文章: articleId={}, title={}, adminId={}",
+                articleId, article.getTitle(), adminUserId);
+    }
+
+    /** 校验调用者是否为管理员，否则抛 403 */
+    private void requireAdmin(Long adminUserId, String message) {
+        if (adminUserId == null) {
+            throw new BusinessException(Result.CODE_UNAUTHORIZED, "请先登录");
+        }
+        User admin = userMapper.selectById(adminUserId);
+        if (admin == null || admin.getRole() == null || admin.getRole() != ROLE_ADMIN) {
+            throw new BusinessException(Result.CODE_FORBIDDEN, message);
+        }
+    }
+
+    @Override
+    public List<MaterialVO> listAuthorMaterials(Long articleId, Long adminUserId) {
+        requireAdmin(adminUserId, "仅管理员可以查看他人素材");
+        Article article = articleMapper.selectById(articleId);
+        if (article == null) {
+            throw new BusinessException(Result.CODE_NOT_FOUND, "资讯不存在");
+        }
+        List<Material> list = materialMapper.selectList(new LambdaQueryWrapper<Material>()
+                .eq(Material::getUserId, article.getUserId())
+                .orderByDesc(Material::getCreateTime)
+                .orderByDesc(Material::getId));
+        return list.stream().map(MaterialVO::from).collect(Collectors.toList());
+    }
+
+    /** 实体 → 编辑回填 VO */
+    private ArticleEditVO toEditVO(Article article) {
+        ArticleEditVO vo = new ArticleEditVO();
+        vo.setId(article.getId());
+        vo.setTitle(article.getTitle());
+        vo.setCategoryId(article.getCategoryId());
+        vo.setCoverImage(article.getCoverImage());
+        vo.setContent(article.getContent());
+        vo.setStatus(article.getStatus());
+
+        List<ArticleMaterial> relations = articleMaterialMapper.selectList(
+                new LambdaQueryWrapper<ArticleMaterial>()
+                        .eq(ArticleMaterial::getArticleId, article.getId()));
+        vo.setMaterialIds(relations.stream()
+                .map(ArticleMaterial::getMaterialId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList()));
+        return vo;
+    }
+
+    // =====================================================================
     //  内部方法
     // =====================================================================
 
