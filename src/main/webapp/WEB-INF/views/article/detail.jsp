@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" language="java" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}"/>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -52,7 +53,7 @@
             <div class="detail-meta">
                 <span>作者：${article.authorName}</span>
                 <span>栏目：${article.categoryName != null ? article.categoryName : '未分类'}</span>
-                <span>发布：${article.publishTime}</span>
+                <span>发布：${fn:substring(fn:replace(article.publishTime, 'T', ' '), 0, 16)}</span>
                 <span>浏览：${article.viewCount}</span>
             </div>
         </div>
@@ -93,6 +94,39 @@
             <a class="btn" href="${ctx}/">返回首页</a>
             <span class="hint" id="favTip" style="margin:0"></span>
         </div>
+
+        <%-- 相关阅读：同栏目其它文章，点击直接跳到对应详情页 --%>
+        <c:if test="${not empty related}">
+            <div class="related">
+                <div class="related-head">
+                    <h3>相关阅读</h3>
+                    <c:if test="${not empty article.categoryId}">
+                        <a class="related-more"
+                           href="${ctx}/?categoryId=${article.categoryId}">
+                            查看全部「${article.categoryName}」资讯 →
+                        </a>
+                    </c:if>
+                </div>
+                <div class="related-list">
+                    <c:forEach items="${related}" var="r">
+                        <a class="related-item" href="${ctx}/article/detail/${r.id}">
+                            <c:if test="${not empty r.coverImage}">
+                                <img class="thumb" src="${ctx}${r.coverImage}" alt="">
+                            </c:if>
+                            <c:if test="${empty r.coverImage}">
+                                <span class="thumb no-cover">${r.categoryName}</span>
+                            </c:if>
+                            <span class="info">
+                                <span class="t">${r.title}</span>
+                                <span class="m">
+                                    ${fn:substring(fn:replace(r.publishTime, 'T', ' '), 0, 16)} · 浏览 ${r.viewCount}
+                                </span>
+                            </span>
+                        </a>
+                    </c:forEach>
+                </div>
+            </div>
+        </c:if>
     </div>
         </c:otherwise>
     </c:choose>

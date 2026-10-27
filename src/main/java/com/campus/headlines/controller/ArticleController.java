@@ -72,6 +72,9 @@ public class ArticleController {
         try {
             ArticleDetailVO article = articleService.getDetail(id, loginUser == null ? null : loginUser.getId());
             model.addAttribute("article", article);
+            // 底部“相关阅读”：同栏目其它已通过的资讯
+            model.addAttribute("related",
+                    articleService.listRelated(article.getId(), article.getCategoryId(), 6));
         } catch (BusinessException e) {
             model.addAttribute("errorMsg", e.getMessage());
         }

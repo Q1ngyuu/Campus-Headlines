@@ -244,6 +244,15 @@
             });
         });
 
+        // 支持从别处带参数进来：/?categoryId=3（详情页“查看全部某栏目”用的就是这个）
+        (function initFromUrl() {
+            var m = /[?&]categoryId=(\d+)/.exec(location.search);
+            if (!m) { return; }
+            state.categoryId = m[1];
+            $('#categoryTabs .tab').removeClass('active')
+                .filter('[data-id="' + m[1] + '"]').addClass('active');
+        })();
+
         load(1);
     })();
 </script>

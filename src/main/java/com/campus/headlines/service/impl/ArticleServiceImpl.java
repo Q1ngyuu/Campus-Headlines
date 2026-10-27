@@ -68,6 +68,10 @@ public class ArticleServiceImpl implements ArticleService {
     /** 不分页的动态查询最多返回多少条 */
     private static final int MAX_SEARCH_SIZE = 50;
 
+    /** 详情页相关阅读：默认条数与上限 */
+    private static final int DEFAULT_RELATED = 6;
+    private static final int MAX_RELATED = 10;
+
     @Resource
     private ArticleMapper articleMapper;
 
@@ -414,6 +418,34 @@ public class ArticleServiceImpl implements ArticleService {
             throw new BusinessException("资讯状态已变更，请刷新后重试");
         }
         log.info("置顶状态更新: articleId={}, isTop={}, adminId={}", articleId, isTop, adminUserId);
+    }
+
+    @Override
+    public List<ArticleListVO> listRelated(Long articleId, Long categoryId, int limit) {
+        int max = limit <= 0 ? DEFAULT_RELATED : Math.min(limit, MAX_RELATED);
+
+        LambdaQueryWrapper<Article> query = new LambdaQueryWrapper<Article>()
+                .eq(Article::getStatus, Article.STATUS_APPROVED)
+                .ne(Article::getId, articleId)
+                .orderByDesc(Article::getPublishTime)
+                .orderByDesc(Article::getId)
+                // max 是服务端算出来的整数，不存在注入风险
+                .last("LIMIT " + max);
+        if (categoryId != null) {
+            query.eq(Article::getCategoryId, categoryId);
+        }
+        List<Article> list = articleMapper.selectList(query);
+
+        // 同栏目没有其它文章（例如新栏目只有这一篇）时，退化为全站最新
+        if (list.isEmpty() && categoryId != null) {
+            list = articleMapper.selectList(new LambdaQueryWrapper<Article>()
+                    .eq(Article::getStatus, Article.STATUS_APPROVED)
+                    .ne(Article::getId, articleId)
+                    .orderByDesc(Article::getPublishTime)
+                    .orderByDesc(Article::getId)
+                    .last("LIMIT " + max));
+        }
+        return enrich(list);
     }
 
     @Override

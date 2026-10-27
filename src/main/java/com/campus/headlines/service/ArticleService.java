@@ -102,6 +102,17 @@ public interface ArticleService {
     void top(Long articleId, Integer isTop, Long adminUserId);
 
     /**
+     * 详情页“相关阅读”：同栏目下其它已通过的资讯，按发布时间倒序取 N 条。
+     *
+     * <p>同栏目没有别的内容时退化为全站最新，避免详情页底部出现空白。</p>
+     *
+     * @param articleId  当前文章（结果中排除自己）
+     * @param categoryId 当前文章所属栏目，可为 null（为 null 则直接取全站最新）
+     * @param limit      最多返回几条，超出按 10 处理
+     */
+    List<ArticleListVO> listRelated(Long articleId, Long categoryId, int limit);
+
+    /**
      * 编辑回填：取自己的草稿/被驳回稿件。
      */
     ArticleEditVO getForEdit(Long articleId, Long userId);
