@@ -7,8 +7,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>校园头条</title>
-    <link rel="stylesheet" href="${ctx}/static/css/app.css">
-    <link rel="stylesheet" href="${ctx}/static/css/article.css">
+    <link rel="stylesheet" href="${ctx}/static/css/app.css?v=20261027">
+    <link rel="stylesheet" href="${ctx}/static/css/article.css?v=20261027">
     <style>
         /* 首页专属：校园实景背景图（只在首页生效，不影响其它页面） */
         body {
@@ -123,7 +123,7 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="${ctx}/static/js/jquery.min.js"></script>
+<script src="${ctx}/static/js/jquery.min.js?v=20261027"></script>
 <script>
     (function () {
         var ctx = '${ctx}';

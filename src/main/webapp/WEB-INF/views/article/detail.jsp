@@ -3,14 +3,15 @@
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}"/>
+<c:set var="staticVer" value="20261027"/>
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${article.title} - 校园头条</title>
-    <link rel="stylesheet" href="${ctx}/static/css/app.css">
-    <link rel="stylesheet" href="${ctx}/static/css/article.css">
+    <link rel="stylesheet" href="${ctx}/static/css/app.css?v=${staticVer}">
+    <link rel="stylesheet" href="${ctx}/static/css/article.css?v=${staticVer}">
 </head>
 <body>
 
@@ -46,95 +47,105 @@
             </div>
         </c:when>
         <c:otherwise>
-    <div class="panel">
 
-        <div class="detail-head">
-            <h1>${article.title}</h1>
-            <div class="detail-meta">
-                <span>作者：${article.authorName}</span>
-                <span>栏目：${article.categoryName != null ? article.categoryName : '未分类'}</span>
-                <span>发布：${fn:substring(fn:replace(article.publishTime, 'T', ' '), 0, 16)}</span>
-                <span>浏览：${article.viewCount}</span>
-            </div>
-        </div>
+            <div class="detail-layout">
 
-        <c:if test="${not empty article.coverImage}">
-            <img class="detail-cover" src="${ctx}${article.coverImage}" alt="封面">
-        </c:if>
+                <%-- 左：文章主体 --%>
+                <div class="panel detail-main">
 
-        <%-- 正文是作者提交的富文本，必须原样渲染；生产环境应做 HTML 白名单过滤防 XSS --%>
-        <div class="article-body">
-            <c:out value="${article.content}" escapeXml="false"/>
-        </div>
+                    <div class="detail-head">
+                        <h1>${article.title}</h1>
+                        <div class="detail-meta">
+                            <span>作者：${article.authorName}</span>
+                            <span>栏目：${article.categoryName != null ? article.categoryName : '未分类'}</span>
+                            <span>发布：${fn:substring(fn:replace(article.publishTime, 'T', ' '), 0, 16)}</span>
+                            <span>浏览：${article.viewCount}</span>
+                        </div>
+                    </div>
 
-        <c:if test="${not empty article.materials}">
-            <h3 style="font-size:15px;margin:26px 0 0">相关素材</h3>
-            <div class="gallery">
-                <c:forEach items="${article.materials}" var="m">
-                    <c:choose>
-                        <c:when test="${m.image}">
-                            <a href="${ctx}${m.filePath}" target="_blank" title="${m.fileName}">
-                                <img src="${ctx}${m.filePath}" alt="${m.fileName}">
-                            </a>
-                        </c:when>
-                        <c:otherwise>
-                            <a href="${ctx}${m.filePath}" target="_blank" title="${m.fileName}">
-                                <video src="${ctx}${m.filePath}" preload="metadata"></video>
-                            </a>
-                        </c:otherwise>
-                    </c:choose>
-                </c:forEach>
-            </div>
-        </c:if>
-
-        <div style="display:flex;gap:12px;align-items:center;margin-top:26px">
-            <button class="btn ${article.favorite ? 'btn-primary' : ''}" id="favBtn" type="button">
-                ${article.favorite ? '已收藏' : '收藏'}
-            </button>
-            <a class="btn" href="${ctx}/">返回首页</a>
-            <span class="hint" id="favTip" style="margin:0"></span>
-        </div>
-
-        <%-- 相关阅读：同栏目其它文章，点击直接跳到对应详情页 --%>
-        <c:if test="${not empty related}">
-            <div class="related">
-                <div class="related-head">
-                    <h3>相关阅读</h3>
-                    <c:if test="${not empty article.categoryId}">
-                        <a class="related-more"
-                           href="${ctx}/?categoryId=${article.categoryId}">
-                            查看全部「${article.categoryName}」资讯 →
-                        </a>
+                    <c:if test="${not empty article.coverImage}">
+                        <img class="detail-cover" src="${ctx}${article.coverImage}" alt="封面">
                     </c:if>
+
+                    <%-- 正文是作者提交的富文本，必须原样渲染；生产环境应做 HTML 白名单过滤防 XSS --%>
+                    <div class="article-body">
+                        <c:out value="${article.content}" escapeXml="false"/>
+                    </div>
+
+                    <c:if test="${not empty article.materials}">
+                        <h3 style="font-size:15px;margin:26px 0 0">相关素材</h3>
+                        <div class="gallery">
+                            <c:forEach items="${article.materials}" var="m">
+                                <c:choose>
+                                    <c:when test="${m.image}">
+                                        <a href="${ctx}${m.filePath}" target="_blank" title="${m.fileName}">
+                                            <img src="${ctx}${m.filePath}" alt="${m.fileName}">
+                                        </a>
+                                    </c:when>
+                                    <c:otherwise>
+                                        <a href="${ctx}${m.filePath}" target="_blank" title="${m.fileName}">
+                                            <video src="${ctx}${m.filePath}" preload="metadata"></video>
+                                        </a>
+                                    </c:otherwise>
+                                </c:choose>
+                            </c:forEach>
+                        </div>
+                    </c:if>
+
+                    <div style="display:flex;gap:12px;align-items:center;margin-top:26px">
+                        <button class="btn ${article.favorite ? 'btn-primary' : ''}" id="favBtn" type="button">
+                            ${article.favorite ? '已收藏' : '收藏'}
+                        </button>
+                        <a class="btn" href="${ctx}/">返回首页</a>
+                        <span class="hint" id="favTip" style="margin:0"></span>
+                    </div>
                 </div>
-                <div class="related-list">
-                    <c:forEach items="${related}" var="r">
-                        <a class="related-item" href="${ctx}/article/detail/${r.id}">
-                            <c:if test="${not empty r.coverImage}">
-                                <img class="thumb" src="${ctx}${r.coverImage}" alt="">
+
+                <%-- 右：相关阅读（竖排小栏，滚动时跟随） --%>
+                <aside class="detail-side">
+                    <c:if test="${not empty related}">
+                        <div class="side-card">
+                            <h3>相关阅读</h3>
+                            <ul class="side-list">
+                                <c:forEach items="${related}" var="r">
+                                    <li>
+                                        <a class="side-item" href="${ctx}/article/detail/${r.id}">
+                                            <span class="side-title">${r.title}</span>
+                                            <span class="side-meta">
+                                                ${fn:substring(fn:replace(r.publishTime, 'T', ' '), 0, 16)}
+                                                · 浏览 ${r.viewCount}
+                                            </span>
+                                        </a>
+                                    </li>
+                                </c:forEach>
+                            </ul>
+                            <c:if test="${not empty article.categoryId}">
+                                <a class="side-more" href="${ctx}/?categoryId=${article.categoryId}">
+                                    查看全部「${article.categoryName}」资讯 →
+                                </a>
                             </c:if>
-                            <c:if test="${empty r.coverImage}">
-                                <span class="thumb no-cover">${r.categoryName}</span>
-                            </c:if>
-                            <span class="info">
-                                <span class="t">${r.title}</span>
-                                <span class="m">
-                                    ${fn:substring(fn:replace(r.publishTime, 'T', ' '), 0, 16)} · 浏览 ${r.viewCount}
-                                </span>
-                            </span>
-                        </a>
-                    </c:forEach>
-                </div>
+                        </div>
+                    </c:if>
+
+                    <div class="side-card">
+                        <h3>快捷入口</h3>
+                        <ul class="side-list">
+                            <li><a class="side-item" href="${ctx}/"><span class="side-title">返回首页</span></a></li>
+                            <li><a class="side-item" href="${ctx}/article/publish"><span class="side-title">我要投稿</span></a></li>
+                            <li><a class="side-item" href="${ctx}/favorite"><span class="side-title">我的收藏</span></a></li>
+                        </ul>
+                    </div>
+                </aside>
+
             </div>
-        </c:if>
-    </div>
+
         </c:otherwise>
     </c:choose>
 </div>
 
 <div class="toast" id="toast"></div>
 
-<script src="${ctx}/static/js/jquery.min.js"></script>
+<script src="${ctx}/static/js/jquery.min.js?v=${staticVer}"></script>
 <script>
     (function () {
         var ctx = '${ctx}';

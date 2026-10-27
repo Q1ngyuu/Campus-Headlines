@@ -7,8 +7,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>审核管理 - 校园头条</title>
-    <link rel="stylesheet" href="${ctx}/static/css/app.css">
-    <link rel="stylesheet" href="${ctx}/static/css/article.css">
+    <link rel="stylesheet" href="${ctx}/static/css/app.css?v=20261027">
+    <link rel="stylesheet" href="${ctx}/static/css/article.css?v=20261027">
 </head>
 <body>
 
@@ -39,7 +39,7 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="${ctx}/static/js/jquery.min.js"></script>
+<script src="${ctx}/static/js/jquery.min.js?v=20261027"></script>
 <script>
     (function () {
         var ctx = '${ctx}';
