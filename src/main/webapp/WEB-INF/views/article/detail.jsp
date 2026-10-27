@@ -73,26 +73,6 @@
                         <c:out value="${article.content}" escapeXml="false"/>
                     </div>
 
-                    <c:if test="${not empty article.materials}">
-                        <h3 style="font-size:15px;margin:26px 0 0">相关素材</h3>
-                        <div class="gallery">
-                            <c:forEach items="${article.materials}" var="m">
-                                <c:choose>
-                                    <c:when test="${m.image}">
-                                        <a href="${ctx}${m.filePath}" target="_blank" title="${m.fileName}">
-                                            <img src="${ctx}${m.filePath}" alt="${m.fileName}">
-                                        </a>
-                                    </c:when>
-                                    <c:otherwise>
-                                        <a href="${ctx}${m.filePath}" target="_blank" title="${m.fileName}">
-                                            <video src="${ctx}${m.filePath}" preload="metadata"></video>
-                                        </a>
-                                    </c:otherwise>
-                                </c:choose>
-                            </c:forEach>
-                        </div>
-                    </c:if>
-
                     <div style="display:flex;gap:12px;align-items:center;margin-top:26px">
                         <button class="btn ${article.favorite ? 'btn-primary' : ''}" id="favBtn" type="button">
                             ${article.favorite ? '已收藏' : '收藏'}

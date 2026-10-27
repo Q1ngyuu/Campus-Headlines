@@ -2,7 +2,6 @@ package com.campus.headlines.vo;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * 资讯详情（详情页用）。
@@ -36,8 +35,6 @@ public class ArticleDetailVO implements Serializable {
 
     private LocalDateTime createTime;
 
-    /** 内嵌素材（来自 article_material 关联） */
-    private List<MaterialVO> materials;
 
     /** 当前登录用户是否已收藏 */
     private Boolean favorite;
@@ -138,13 +135,6 @@ public class ArticleDetailVO implements Serializable {
         this.createTime = createTime;
     }
 
-    public List<MaterialVO> getMaterials() {
-        return materials;
-    }
-
-    public void setMaterials(List<MaterialVO> materials) {
-        this.materials = materials;
-    }
 
     public Boolean getFavorite() {
         return favorite;

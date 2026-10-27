@@ -343,20 +343,6 @@ public class ArticleServiceImpl implements ArticleService {
             }
         }
 
-        // 内嵌素材
-        List<ArticleMaterial> relations = articleMaterialMapper.selectList(
-                new LambdaQueryWrapper<ArticleMaterial>().eq(ArticleMaterial::getArticleId, articleId));
-        if (!relations.isEmpty()) {
-            List<Long> materialIds = relations.stream()
-                    .map(ArticleMaterial::getMaterialId)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-            if (!materialIds.isEmpty()) {
-                List<Material> materials = materialMapper.selectBatchIds(materialIds);
-                vo.setMaterials(materials.stream().map(MaterialVO::from).collect(Collectors.toList()));
-            }
-        }
-
         // 收藏状态（未登录时不查）
         boolean favorite = false;
         if (currentUserId != null) {
