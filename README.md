@@ -634,6 +634,59 @@ public void serviceMethods() {}
 切面所在的 `com.campus.headlines.aspect` 包必须纳入**根容器**的 component-scan，
 因为 service 的代理由根容器创建。
 
+### 后台管理（文章 / 栏目 / 用户）
+
+管理后台入口 `/admin/article/page`，三个模块共用同一套顶部导航：
+
+| 模块 | 页面 | 能做什么 |
+| --- | --- | --- |
+| 文章管理 | `/admin/article/page` | 待审核（通过/驳回/编辑）、已通过（置顶/编辑/查看/删除）、全部文章 |
+| 栏目管理 | `/admin/category/page` | 新增、改名、调排序、启用/停用、删除（有文章时拒绝） |
+| 用户管理 | `/admin/user/page` | 搜索、按角色筛选、禁用/启用、重置密码 |
+
+**接口**
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/admin/article/list?status=&page=&size=` | 文章列表，status 为空表示全部 |
+| GET | `/admin/article/edit/{id}` | 编辑页 |
+| GET | `/admin/article/edit-data/{id}` | 编辑回填 |
+| POST | `/admin/article/update` | 保存修改（不动状态与发布时间） |
+| DELETE | `/admin/article/{id}` | 删除文章（级联清理关联与收藏） |
+| GET | `/admin/category/list` · POST `/admin/category/save` · DELETE `/admin/category/{id}` | 栏目维护 |
+| GET | `/admin/user/list` · POST `/admin/user/status` · POST `/admin/user/password` | 账号维护 |
+
+几条刻意的限制：
+
+- **管理员编辑不改状态**：改完标题正文，`status` 和 `publish_time` 原样保留，
+  避免“编辑一下就把待审核的稿子变成已发布”。
+- **栏目有文章时不许删**：会提示「该栏目下还有 N 篇文章，请先转移后再删除」，
+  否则整批文章会被外键 `SET NULL` 静默改成未分类。
+- **不能禁用自己**：管理员点了自己的“禁用”会被拒绝，避免把自己锁在门外。
+- **重置密码走 BCrypt**：管理员输入新密码，服务端加密后入库，库里不出现明文。
+
+### 作者自助：撤回 / 编辑 / 删除自己的稿件
+
+`/article/my` 每篇稿件按状态给不同操作：
+
+| 状态 | 可用操作 |
+| --- | --- |
+| 草稿(0) | 编辑 · 提交审核 · 删除 |
+| 待审核(1) | **撤回** · 删除 |
+| 已通过(2) | 编辑 · 查看 · 删除 |
+| 已驳回(3) | 编辑 · 提交审核 · 删除 |
+
+规则说明：
+
+- **撤回**：1 → 0。撤回后才能改，避免“提交后还能随便改内容”绕过审核。
+- **编辑已通过的文章**：保存后状态回到 **0 草稿**，并清空 `publish_time`——
+  内容变了就得重新走一遍审核。
+- **删除**：任意状态都可以删自己的稿件，物理删除并级联清理关联与收藏；
+  删别人的会返回 403。
+
+> 踩坑记录：`updateById` 默认忽略 null 字段，所以 `article.setPublishTime(null)`
+> 根本不会清空数据库里的值。要真正置空必须用 `UpdateWrapper.set(column, null)`。
+
 ### 两个必踩的坑（已处理）
 
 1. **`@Resource` 在 JDK 11+ 编译不过**：`javax.annotation` 包已从 JDK 移除，必须显式引入
@@ -687,6 +740,10 @@ public void serviceMethods() {}
 - [x] 资讯发布（草稿/提交审核，封面与内嵌素材关联 article_material）
 - [x] 管理员审核（待审核 → 通过/驳回，`@Transactional` + 条件更新）
 - [x] 管理员置顶 / 取消置顶（首页置顶优先）
+- [x] 后台文章管理（全部文章 / 编辑 / 删除）
+- [x] 栏目管理（增删改、启停用）
+- [x] 用户管理（禁用/启用、重置密码）
+- [x] 作者自助（撤回 / 编辑已发布 / 删除自己的稿件）
 - [x] 首页列表分页 + 详情页 + 浏览量原子自增
 - [x] 栏目筛选、收藏/取消收藏（含“我的收藏”页）
 - [x] JSP 视图与静态资源样式（首页/详情/发布/我的/审核）

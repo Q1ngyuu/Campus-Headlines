@@ -113,6 +113,7 @@ public class ArticleServiceImpl implements ArticleService {
         String content = dto.getContent() == null ? "" : dto.getContent();
 
         Article article;
+        boolean wasApproved = false;
         if (dto.getId() == null) {
             article = new Article();
             article.setUserId(userId);
@@ -129,12 +130,11 @@ public class ArticleServiceImpl implements ArticleService {
             }
             int status = article.getStatus() == null ? -1 : article.getStatus();
             if (status == Article.STATUS_PENDING) {
-                throw new BusinessException("审核中的资讯不能修改，请等待管理员处理");
+                throw new BusinessException("审核中的资讯请先撤回，再修改");
             }
-            if (status == Article.STATUS_APPROVED) {
-                throw new BusinessException("已通过的资讯不能直接修改，如需更正请联系管理员");
-            }
-            // 剩下 0 草稿 / 3 已驳回：都回到草稿状态，改完再提交
+            // 0 草稿 / 3 已驳回 / 2 已通过：统一回到草稿，改完重新提交审核。
+            // 已通过的文章被编辑意味着内容要重新过审，所以同时撤下发布时间。
+            wasApproved = (status == Article.STATUS_APPROVED);
             article.setStatus(Article.STATUS_DRAFT);
             // 驳回原因保留在库里做历史，重新提交由 audit 覆盖，这里不清空
         }
@@ -148,6 +148,13 @@ public class ArticleServiceImpl implements ArticleService {
             articleMapper.insert(article);
         } else {
             articleMapper.updateById(article);
+            if (wasApproved) {
+                // MyBatis-Plus 的 updateById 默认忽略 null 字段，
+                // 想真正清空 publish_time 必须用 UpdateWrapper 显式 set null
+                articleMapper.update(null, new LambdaUpdateWrapper<Article>()
+                        .eq(Article::getId, article.getId())
+                        .set(Article::getPublishTime, null));
+            }
         }
         Long articleId = article.getId();
 
@@ -549,6 +556,52 @@ public class ArticleServiceImpl implements ArticleService {
                 articleId, article.getTitle(), adminUserId);
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void withdraw(Long articleId, Long userId) {
+        if (userId == null) {
+            throw new BusinessException(Result.CODE_UNAUTHORIZED, "请先登录");
+        }
+        Article article = articleMapper.selectById(articleId);
+        if (article == null) {
+            throw new BusinessException(Result.CODE_NOT_FOUND, "资讯不存在");
+        }
+        if (!userId.equals(article.getUserId())) {
+            throw new BusinessException(Result.CODE_FORBIDDEN, "只能撤回自己的资讯");
+        }
+        if (!Integer.valueOf(Article.STATUS_PENDING).equals(article.getStatus())) {
+            throw new BusinessException("只有待审核的资讯可以撤回");
+        }
+        // 条件更新：仍是待审核才允许撤回
+        int updated = articleMapper.update(null, new LambdaUpdateWrapper<Article>()
+                .eq(Article::getId, articleId)
+                .eq(Article::getUserId, userId)
+                .eq(Article::getStatus, Article.STATUS_PENDING)
+                .set(Article::getStatus, Article.STATUS_DRAFT));
+        if (updated == 0) {
+            throw new BusinessException("资讯状态已变更，请刷新后重试");
+        }
+        log.info("作者撤回稿件: articleId={}, userId={}", articleId, userId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteByAuthor(Long articleId, Long userId) {
+        if (userId == null) {
+            throw new BusinessException(Result.CODE_UNAUTHORIZED, "请先登录");
+        }
+        Article article = articleMapper.selectById(articleId);
+        if (article == null) {
+            throw new BusinessException(Result.CODE_NOT_FOUND, "资讯不存在");
+        }
+        if (!userId.equals(article.getUserId())) {
+            throw new BusinessException(Result.CODE_FORBIDDEN, "只能删除自己的资讯");
+        }
+        articleMapper.deleteById(articleId);
+        log.info("作者删除稿件: articleId={}, title={}, userId={}",
+                articleId, article.getTitle(), userId);
+    }
+
     /** 校验调用者是否为管理员，否则抛 403 */
     private void requireAdmin(Long adminUserId, String message) {
         if (adminUserId == null) {
@@ -561,8 +614,7 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
-    public List<MaterialVO> listAuthorMaterials(Long articleId, Long adminUserId) {
-        requireAdmin(adminUserId, "仅管理员可以查看他人素材");
+    public List<MaterialVO> listAuthorMaterials(Long articleId, Long adminUserId) {        requireAdmin(adminUserId, "仅管理员可以查看他人素材");
         Article article = articleMapper.selectById(articleId);
         if (article == null) {
             throw new BusinessException(Result.CODE_NOT_FOUND, "资讯不存在");

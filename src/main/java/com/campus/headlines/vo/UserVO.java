@@ -33,6 +33,9 @@ public class UserVO implements Serializable {
     /** 角色：0-学生，1-管理员 */
     private Integer role;
 
+    /** 账号状态：0-禁用，1-正常（管理后台列表用） */
+    private Integer status;
+
     /** 注册时间 */
     private LocalDateTime createTime;
 
@@ -50,6 +53,7 @@ public class UserVO implements Serializable {
         vo.setNickname(user.getNickname());
         vo.setAvatar(user.getAvatar());
         vo.setRole(user.getRole());
+        vo.setStatus(user.getStatus());
         vo.setCreateTime(user.getCreateTime());
         return vo;
     }
@@ -103,6 +107,14 @@ public class UserVO implements Serializable {
 
     public void setRole(Integer role) {
         this.role = role;
+    }
+
+    public Integer getStatus() {
+        return status;
+    }
+
+    public void setStatus(Integer status) {
+        this.status = status;
     }
 
     public LocalDateTime getCreateTime() {

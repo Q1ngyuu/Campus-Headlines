@@ -103,7 +103,9 @@
 
                     var $ops = $('<div class="meta" style="gap:8px"></div>');
 
-                    if (a.status === 0 || a.status === 3) {
+                    // 草稿 / 已驳回 / 已通过 都可以继续编辑；
+                    // 编辑已通过的文章会在保存后回到草稿，需要重新审核
+                    if (a.status === 0 || a.status === 2 || a.status === 3) {
                         $ops.append($('<a class="btn btn-sm"></a>')
                             .attr('href', ctx + '/article/publish?id=' + a.id).text('编辑'));
                     }
@@ -111,10 +113,18 @@
                         $ops.append($('<button class="btn btn-sm btn-primary">提交审核</button>')
                             .on('click', function () { submit(a.id, this); }));
                     }
+                    if (a.status === 1) {
+                        $ops.append($('<button class="btn btn-sm">撤回</button>')
+                            .on('click', function () { withdraw(a.id, this); }));
+                    }
                     if (a.status === 2) {
                         $ops.append($('<a class="btn btn-sm"></a>')
                             .attr('href', ctx + '/article/detail/' + a.id).text('查看'));
                     }
+                    // 任何状态都可以删除自己的文章
+                    $ops.append($('<button class="btn btn-sm btn-danger">删除</button>')
+                        .on('click', function () { remove(a.id, a.title, this); }));
+
                     $body.append($ops);
 
                     $card.append($cover, $body);
@@ -162,6 +172,35 @@
                 var msg = (xhr.responseJSON && xhr.responseJSON.msg) || '提交失败';
                 toast(msg, 'error');
                 $btn.prop('disabled', false);
+            });
+        }
+
+        function withdraw(articleId, btn) {
+            var $btn = $(btn).prop('disabled', true);
+            $.post(ctx + '/article/withdraw/' + articleId, function (res) {
+                if (res.code === 200) { toast(res.msg, 'ok'); load(state.page); }
+                else { toast(res.msg || '撤回失败', 'error'); $btn.prop('disabled', false); }
+            }).fail(function (xhr) {
+                toast((xhr.responseJSON && xhr.responseJSON.msg) || '撤回失败', 'error');
+                $btn.prop('disabled', false);
+            });
+        }
+
+        function remove(articleId, title, btn) {
+            if (!window.confirm('确定删除《' + title + '》？\n删除后不可恢复。')) { return; }
+            var $btn = $(btn).prop('disabled', true);
+            $.ajax({
+                url: ctx + '/article/' + articleId,
+                type: 'DELETE',
+                dataType: 'json',
+                success: function (res) {
+                    if (res.code === 200) { toast('已删除', 'ok'); load(state.page); }
+                    else { toast(res.msg || '删除失败', 'error'); $btn.prop('disabled', false); }
+                },
+                error: function (xhr) {
+                    toast((xhr.responseJSON && xhr.responseJSON.msg) || '删除失败', 'error');
+                    $btn.prop('disabled', false);
+                }
             });
         }
 

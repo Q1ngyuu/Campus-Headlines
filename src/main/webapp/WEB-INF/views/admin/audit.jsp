@@ -15,8 +15,11 @@
 
 <div class="topbar">
     <span class="brand">校园头条 · 管理后台</span>
-    <a href="${ctx}/">首页</a>
+    <a href="${ctx}/admin/article/page">文章管理</a>
+    <a href="${ctx}/admin/category/page">栏目管理</a>
+    <a href="${ctx}/admin/user/page">用户管理</a>
     <span class="spacer"></span>
+    <a href="${ctx}/">返回首页</a>
     <span class="hint" style="margin:0">${loginUser.nickname}（管理员）</span>
 </div>
 

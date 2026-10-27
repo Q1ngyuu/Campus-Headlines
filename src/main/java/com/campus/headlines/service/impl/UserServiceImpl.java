@@ -1,6 +1,7 @@
 package com.campus.headlines.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.headlines.common.BusinessException;
 import com.campus.headlines.common.Result;
 import com.campus.headlines.dto.LoginDTO;
@@ -8,6 +9,8 @@ import com.campus.headlines.dto.RegisterDTO;
 import com.campus.headlines.entity.User;
 import com.campus.headlines.mapper.UserMapper;
 import com.campus.headlines.service.UserService;
+import com.campus.headlines.util.AdminGuard;
+import com.campus.headlines.vo.PageVO;
 import com.campus.headlines.vo.UserVO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +53,9 @@ public class UserServiceImpl implements UserService {
 
     @Resource
     private PasswordEncoder passwordEncoder;
+
+    @Resource
+    private AdminGuard adminGuard;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -140,6 +146,75 @@ public class UserServiceImpl implements UserService {
             return null;
         }
         return UserVO.from(userMapper.selectById(id));
+    }
+
+    // =====================================================================
+    //  管理员：账号管理
+    // =====================================================================
+
+    @Override
+    public PageVO<UserVO> listForAdmin(String keyword, Integer role, long page, long size) {
+        long current = page < 1 ? 1 : page;
+        long pageSize = size < 1 ? 10 : Math.min(size, 50);
+
+        LambdaQueryWrapper<User> query = new LambdaQueryWrapper<>();
+        String kw = trimToNull(keyword);
+        if (kw != null) {
+            query.and(w -> w.like(User::getUsername, kw).or().like(User::getNickname, kw));
+        }
+        if (role != null) {
+            query.eq(User::getRole, role);
+        }
+        query.orderByDesc(User::getId);
+
+        Page<User> result = userMapper.selectPage(new Page<>(current, pageSize), query);
+        return PageVO.of(result, UserVO::from);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateStatus(Long userId, Integer status, Long adminUserId) {
+        adminGuard.require(adminUserId, "修改账号状态");
+        if (status == null || (status != 0 && status != STATUS_NORMAL)) {
+            throw new BusinessException("账号状态不合法");
+        }
+        if (userId == null) {
+            throw new BusinessException("用户ID不能为空");
+        }
+        if (userId.equals(adminUserId) && status == 0) {
+            throw new BusinessException("不能禁用自己的账号");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(Result.CODE_NOT_FOUND, "用户不存在");
+        }
+        User update = new User();
+        update.setId(userId);
+        update.setStatus(status);
+        userMapper.updateById(update);
+        log.info("账号状态变更: userId={}, username={}, status={}, adminId={}",
+                userId, user.getUsername(), status, adminUserId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void resetPassword(Long userId, String newPassword, Long adminUserId) {
+        adminGuard.require(adminUserId, "重置密码");
+        if (userId == null) {
+            throw new BusinessException("用户ID不能为空");
+        }
+        if (newPassword == null || newPassword.length() < PASSWORD_MIN || newPassword.length() > PASSWORD_MAX) {
+            throw new BusinessException("新密码长度需在 " + PASSWORD_MIN + "-" + PASSWORD_MAX + " 位之间");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(Result.CODE_NOT_FOUND, "用户不存在");
+        }
+        User update = new User();
+        update.setId(userId);
+        update.setPassword(passwordEncoder.encode(newPassword));
+        userMapper.updateById(update);
+        log.info("重置密码: userId={}, username={}, adminId={}", userId, user.getUsername(), adminUserId);
     }
 
     /** 去掉首尾空白，空串归一为 null */

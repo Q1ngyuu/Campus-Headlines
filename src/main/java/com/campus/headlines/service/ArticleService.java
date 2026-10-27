@@ -153,4 +153,20 @@ public interface ArticleService {
      * 取该文章作者的全部素材（管理员换封面时用）。
      */
     java.util.List<com.campus.headlines.vo.MaterialVO> listAuthorMaterials(Long articleId, Long adminUserId);
+
+    // =====================================================================
+    //  作者自助：撤回 / 删除自己的文章
+    // =====================================================================
+
+    /**
+     * 撤回：待审核(1) → 草稿(0)，仅作者本人可操作。
+     *
+     * <p>撤回后可以继续编辑、再次提交。</p>
+     */
+    void withdraw(Long articleId, Long userId);
+
+    /**
+     * 作者删除自己的文章（任意状态），物理删除并级联清理关联与收藏。
+     */
+    void deleteByAuthor(Long articleId, Long userId);
 }

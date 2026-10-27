@@ -14,6 +14,7 @@ import com.campus.headlines.vo.PageVO;
 import com.campus.headlines.vo.UserVO;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -184,5 +185,26 @@ public class ArticleController {
         Long userId = SessionUtil.requireUserId(session);
         articleService.submitForReview(id, userId);
         return Result.success("已提交审核，等待管理员处理", null);
+    }
+    /**
+     * 撤回：待审核(1) → 草稿(0)，仅作者本人。
+     */
+    @PostMapping("/withdraw/{id}")
+    @ResponseBody
+    public Result<Void> withdraw(@PathVariable("id") Long id, HttpSession session) {
+        Long userId = SessionUtil.requireUserId(session);
+        articleService.withdraw(id, userId);
+        return Result.success("已撤回为草稿", null);
+    }
+
+    /**
+     * 作者删除自己的文章（任意状态）。
+     */
+    @DeleteMapping("/{id}")
+    @ResponseBody
+    public Result<Void> delete(@PathVariable("id") Long id, HttpSession session) {
+        Long userId = SessionUtil.requireUserId(session);
+        articleService.deleteByAuthor(id, userId);
+        return Result.success("已删除", null);
     }
 }
