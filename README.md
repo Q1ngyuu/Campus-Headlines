@@ -70,7 +70,8 @@ Campus-Headlines/
 │   │   │   └── upload.properties        # 上传目录、大小与扩展名白名单
     │   │   ├── mapper/                      # MyBatis XML（ArticleMapper.xml 动态 SQL）
     │   │   ├── sql/
-    │   │   │   └── schema.sql               # 建表脚本（6 张表 + 外键 + 初始化栏目）
+    │   │   │   ├── schema.sql               # 建表脚本（6 张表 + 外键 + 初始化栏目）
+│   │   │   └── data.sql                 # 演示数据（10 篇资讯 + 演示账号）
     │   │   └── log4j2.xml                   # 日志配置
     │   └── webapp/
     │       ├── index.jsp                    # 部署自检页
@@ -104,6 +105,30 @@ $mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
 Get-Content .\src\main\resources\sql\schema.sql -Raw -Encoding UTF8 |
     & $mysql -u root -p --default-character-set=utf8mb4 campus_headlines
 ```
+
+### 演示数据（可选，让首页一打开就有内容）
+
+脚本：[`src/main/resources/sql/data.sql`](src/main/resources/sql/data.sql)，所有插入都是「不存在才插」，可重复执行。
+
+```powershell
+$mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
+Get-Content .\src\main\resources\sql\data.sql -Raw -Encoding UTF8 |
+    & $mysql -u root -p --default-character-set=utf8mb4 campus_headlines
+```
+
+内容：4 个栏目 + 10 篇已通过资讯（校园新闻 / 活动通知 / 社团风采 / 学习分享各若干），
+含封面图（`static/img/covers/*.svg`，随 war 一起部署）、浏览量、发布时间与 1 篇置顶。
+
+**演示账号**（密码均为 BCrypt 存储）：
+
+| 账号 | 密码 | 角色 |
+| --- | --- | --- |
+| `admin` | `admin123456` | 管理员（可审核、置顶） |
+| `zhangwei` | `123456` | 学生 |
+| `lisi` | `123456` | 学生 |
+| `wangfang` | `123456` | 学生 |
+
+> 演示密码仅供本地使用，正式部署前请改掉。
 
 完整的 E-R 关系、Mermaid 图、资讯状态流转图与数据字典见
 [`docs/database-design.md`](docs/database-design.md)。

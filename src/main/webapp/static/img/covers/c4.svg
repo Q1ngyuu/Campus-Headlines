@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="学习分享">
+  <defs>
+    <linearGradient id="g_c4" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e5842a"/>
+      <stop offset="100%" stop-color="#ffc88a"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#g_c4)"/>
+  <circle cx="660" cy="90" r="150" fill="#ffffff" opacity="0.12"/>
+  <circle cx="120" cy="390" r="190" fill="#ffffff" opacity="0.10"/>
+  <circle cx="410" cy="225" r="95" fill="#ffffff" opacity="0.08"/>
+  <g fill="#ffffff" opacity="0.92" font-family="Microsoft YaHei, PingFang SC, Arial, sans-serif">
+    <text x="56" y="300" font-size="54" font-weight="700" letter-spacing="4">学习分享</text>
+    <text x="58" y="346" font-size="22" opacity="0.8" letter-spacing="2">CAMPUS HEADLINES</text>
+  </g>
+</svg>
