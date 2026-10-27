@@ -9,6 +9,65 @@
     <title>校园头条</title>
     <link rel="stylesheet" href="${ctx}/static/css/app.css">
     <link rel="stylesheet" href="${ctx}/static/css/article.css">
+    <style>
+        /* 首页专属：校园实景背景图（只在首页生效，不影响其它页面） */
+        body {
+            background-image:
+                    linear-gradient(rgba(255, 255, 255, .30), rgba(255, 255, 255, .45)),
+                    url('${ctx}/static/img/campus-bg.jpg');
+            background-size: cover, cover;
+            background-position: center 30%;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }
+
+        /* 顶栏半透明 */
+        .topbar {
+            background: rgba(255, 255, 255, .78);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom-color: rgba(255, 255, 255, .5);
+        }
+
+        /* 内容区不再用整块白色面板，让背景图完整露出来；
+           只把「筛选工具条」和「文章卡片」做成浮在照片上的白色块 */
+        .panel {
+            background: transparent;
+            box-shadow: none;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            padding: 0;
+        }
+
+        .filters {
+            background: rgba(255, 255, 255, .90);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            padding: 12px 14px;
+            border-radius: 12px;
+            box-shadow: 0 6px 22px rgba(18, 38, 63, .12);
+            margin-bottom: 16px;
+        }
+
+        .article-card {
+            background: #fff;
+            box-shadow: 0 6px 22px rgba(18, 38, 63, .16);
+        }
+
+        /* 没有封面的文章：用栏目名做渐变占位，避免出现一块空白 */
+        .article-card .cover.no-cover {
+            background: linear-gradient(135deg, #e3ecf9, #f0f5fb);
+            color: #8496aa;
+            font-size: 13px;
+            letter-spacing: 2px;
+        }
+
+        .pager {
+            background: rgba(255, 255, 255, .85);
+            border-radius: 10px;
+            padding: 6px 10px;
+        }
+    </style>
 </head>
 <body>
 
@@ -102,7 +161,8 @@
                     if (a.coverImage) {
                         $cover.append($('<img>').attr('src', ctx + a.coverImage).attr('alt', ''));
                     } else {
-                        $cover.text('暂无封面');
+                        // 没有封面时用栏目名做占位，比“暂无封面”好看
+                        $cover.addClass('no-cover').text(a.categoryName || '校园头条');
                     }
 
                     var $body = $('<div class="body"></div>');
