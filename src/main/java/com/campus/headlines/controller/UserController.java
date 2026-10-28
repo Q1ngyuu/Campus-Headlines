@@ -52,12 +52,20 @@ public class UserController {
      * <pre>
      * POST /user/login
      * Content-Type: application/json
-     * {"username":"zhangsan","password":"123456"}
+     * {"username":"zhangsan","password":"123456","rememberMe":true}
      * </pre>
      */
     @PostMapping("/login")
     public Result<UserVO> login(@RequestBody LoginDTO dto, HttpSession session) {
         UserVO user = userService.login(dto);
+
+        // 记住我：把 Session 有效期从默认 30 分钟延长到 7 天
+        if (Boolean.TRUE.equals(dto.getRememberMe())) {
+            session.setMaxInactiveInterval(7 * 24 * 60 * 60);
+        } else {
+            session.setMaxInactiveInterval(30 * 60);
+        }
+
         session.setAttribute(LoginInterceptor.SESSION_USER, user);
         return Result.success("登录成功", user);
     }

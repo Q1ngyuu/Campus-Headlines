@@ -1,123 +1,388 @@
-/* 登录 / 注册页共用样式：单文件、无外部依赖，保证离线可用 */
+/* ==========================================================================
+   登录 / 注册页：左右分栏（左图右表单）
+   参考学校统一身份认证页的版式，纯 CSS + 内联 SVG 图标，无外部依赖
+   ========================================================================== */
 
 * {
     box-sizing: border-box;
 }
 
+html,
 body {
+    height: 100%;
+}
+
+body.auth-page {
     margin: 0;
+    font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", Arial, sans-serif;
+    color: #1f2d3d;
+    background: #fff;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 整体分栏 ---------- */
+.auth-split {
+    display: flex;
     min-height: 100vh;
+}
+
+/* ---------- 左：校园实景 ---------- */
+.auth-visual {
+    position: relative;
+    flex: 1 1 58%;
+    min-width: 0;
+    background-image: url("../img/login-bg.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+/* 左下角轻微压暗，保证文字可读 */
+.auth-visual::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, .35) 100%);
+    pointer-events: none;
+}
+
+.auth-brand {
+    position: absolute;
+    top: 48px;
+    left: 44px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 14px 26px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 10px 28px rgba(16, 40, 78, .16);
+}
+
+.auth-brand img {
+    height: 42px;
+    width: auto;
+    display: block;
+}
+
+.auth-brand .sep {
+    width: 1px;
+    height: 32px;
+    background: #e3e8f0;
+}
+
+.auth-brand .name {
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #1f2d3d;
+    white-space: nowrap;
+}
+
+.auth-visual-caption {
+    position: absolute;
+    left: 48px;
+    bottom: 46px;
+    z-index: 2;
+    color: #fff;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, .45);
+}
+
+.auth-visual-caption h2 {
+    margin: 0 0 8px;
+    font-size: 30px;
+    letter-spacing: 3px;
+    font-weight: 700;
+}
+
+.auth-visual-caption p {
+    margin: 0;
+    font-size: 14px;
+    letter-spacing: 1px;
+    opacity: .88;
+}
+
+/* ---------- 右：表单区 ---------- */
+.auth-main {
+    flex: 0 0 42%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
-    background: linear-gradient(135deg, #eef4ff 0%, #f7f9fc 50%, #eef7f2 100%);
-    color: #2c3e50;
-    padding: 24px;
+    padding: 48px 40px;
+    background: linear-gradient(180deg, #ffffff 0%, #f7fafd 100%);
 }
 
-.auth-card {
+.auth-box {
     width: 100%;
-    max-width: 400px;
-    background: #fff;
-    border-radius: 14px;
-    box-shadow: 0 10px 30px rgba(31, 56, 88, .10);
-    padding: 32px 32px 22px;
+    max-width: 430px;
 }
 
-.auth-card h1 {
-    margin: 0 0 6px;
-    font-size: 22px;
+/* 顶部标题页签 */
+.auth-tabs {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    gap: 26px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #e8ecf2;
+    margin-bottom: 34px;
+}
+
+.auth-tab {
+    position: relative;
+    font-size: 20px;
+    font-weight: 700;
+    color: #9aa7b8;
     letter-spacing: 1px;
+    white-space: nowrap;
 }
 
-.subtitle {
-    margin: 0 0 22px;
-    font-size: 13px;
-    color: #8592a3;
+.auth-tab.is-active {
+    color: #111827;
 }
 
-.field {
-    margin-bottom: 16px;
-}
-
-.field label {
-    display: block;
-    font-size: 13px;
-    color: #5b6b7c;
-    margin-bottom: 6px;
-}
-
-.field input {
+.auth-tab.is-active::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -15px;
     width: 100%;
-    height: 40px;
-    padding: 0 12px;
-    font-size: 14px;
-    border: 1px solid #dfe6ee;
-    border-radius: 8px;
-    outline: none;
+    height: 3px;
+    background: #111827;
+    border-radius: 2px;
+}
+
+/* 输入框 */
+.auth-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 58px;
+    margin-bottom: 20px;
+    border: 1px solid #e2e7ef;
+    border-radius: 999px;
+    background: #fff;
     transition: border-color .15s, box-shadow .15s;
 }
 
-.field input:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, .12);
+.auth-field:focus-within {
+    border-color: #111827;
+    box-shadow: 0 0 0 3px rgba(17, 24, 39, .06);
 }
 
-.msg {
-    min-height: 20px;
-    font-size: 13px;
-    line-height: 20px;
-    margin-bottom: 8px;
+.auth-field .icon {
+    position: absolute;
+    left: 22px;
+    width: 20px;
+    height: 20px;
+    color: #98a4b3;
+    pointer-events: none;
 }
 
-.msg.error {
-    color: #d03050;
-}
-
-.msg.ok {
-    color: #18a058;
-}
-
-.btn-primary {
-    width: 100%;
-    height: 42px;
-    border: none;
-    border-radius: 8px;
-    background: #2f6fed;
-    color: #fff;
+.auth-field input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    padding: 0 52px 0 54px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    outline: none;
     font-size: 15px;
-    letter-spacing: 2px;
+    color: #1f2d3d;
+    font-family: inherit;
+}
+
+.auth-field input::placeholder {
+    color: #a9b5c4;
+}
+
+/* 密码可见切换 */
+.auth-eye {
+    position: absolute;
+    right: 8px;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    border-radius: 50%;
     cursor: pointer;
-    transition: background .15s;
+    color: #9aa7b8;
 }
 
-.btn-primary:hover {
-    background: #245bd0;
+.auth-eye:hover {
+    background: #f2f5f9;
+    color: #5b6b7c;
 }
 
-.btn-primary:disabled {
-    background: #9db6e8;
+.auth-eye svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* “记住我 / 忘记密码”一行 */
+.auth-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 2px 0 26px;
+    font-size: 13.5px;
+    color: #5b6b7c;
+}
+
+.auth-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.auth-check input {
+    width: 16px;
+    height: 16px;
+    accent-color: #111827;
+    cursor: pointer;
+}
+
+.auth-link {
+    color: #1f2d3d;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color .15s;
+}
+
+.auth-link:hover {
+    border-bottom-color: #1f2d3d;
+}
+
+/* 主按钮 */
+.auth-submit {
+    width: 100%;
+    height: 54px;
+    border: 0;
+    border-radius: 999px;
+    background: #111827;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 6px;
+    text-indent: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background .15s, transform .05s;
+}
+
+.auth-submit:hover {
+    background: #000;
+}
+
+.auth-submit:active {
+    transform: translateY(1px);
+}
+
+.auth-submit:disabled {
+    background: #9aa3af;
     cursor: not-allowed;
 }
 
-.foot {
-    margin: 18px 0 0;
-    text-align: center;
-    font-size: 13px;
+/* 按钮下方一行 */
+.auth-foot-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 22px;
+    font-size: 13.5px;
     color: #8592a3;
 }
 
-.foot a {
-    color: #2f6fed;
-    text-decoration: none;
+/* 提示信息 */
+.auth-msg {
+    min-height: 20px;
+    margin: 14px 0 0;
+    font-size: 13px;
+    line-height: 20px;
+    text-align: center;
 }
 
-.foot a:hover {
-    text-decoration: underline;
+.auth-msg.error {
+    color: #d03050;
 }
 
-.foot .sep {
-    margin: 0 8px;
-    color: #d5dde7;
+.auth-msg.ok {
+    color: #18a058;
+}
+
+/* 底部说明 */
+.auth-note {
+    margin: 34px 0 0;
+    font-size: 12.5px;
+    color: #a9b5c4;
+    text-align: center;
+    line-height: 22px;
+}
+
+.auth-note .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin: 0 6px 2px 0;
+    border-radius: 50%;
+    background: #cfd8e3;
+    vertical-align: middle;
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 1000px) {
+    .auth-split {
+        flex-direction: column;
+    }
+
+    .auth-visual {
+        flex: 0 0 auto;
+        height: 220px;
+        background-position: center 30%;
+    }
+
+    .auth-visual-caption {
+        display: none;
+    }
+
+    .auth-brand {
+        top: 26px;
+        left: 24px;
+        padding: 10px 18px;
+        gap: 12px;
+    }
+
+    .auth-brand img {
+        height: 32px;
+    }
+
+    .auth-brand .name {
+        font-size: 17px;
+    }
+
+    .auth-main {
+        flex: 1 1 auto;
+        padding: 36px 22px 48px;
+    }
+}
+
+@media (max-width: 520px) {
+    .auth-tab {
+        font-size: 18px;
+    }
+
+    .auth-field {
+        height: 52px;
+    }
+
+    .auth-submit {
+        height: 50px;
+    }
 }

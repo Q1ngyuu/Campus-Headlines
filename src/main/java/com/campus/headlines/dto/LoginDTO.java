@@ -11,6 +11,9 @@ public class LoginDTO {
     /** 明文密码，与库中 BCrypt 密文比对 */
     private String password;
 
+    /** 记住我：勾选后把 Session 有效期延长到 7 天，否则沿用默认的 30 分钟 */
+    private Boolean rememberMe;
+
     public String getUsername() {
         return username;
     }
@@ -25,5 +28,13 @@ public class LoginDTO {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public Boolean getRememberMe() {
+        return rememberMe;
+    }
+
+    public void setRememberMe(Boolean rememberMe) {
+        this.rememberMe = rememberMe;
     }
 }
